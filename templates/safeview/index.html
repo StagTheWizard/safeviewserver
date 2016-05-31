@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Safeview</title>
+
+    {% load static %}
+    <script language="JavaScript" type="text/javascript" src="https://d3js.org/d3.v3.min.js"></script>
+    <script language="JavaScript" type="text/javascript" src="{% static "safeviewservice/scripts/d3.tip.v0.6.3.js" %}"></script>
+    <script language="JavaScript" type="text/javascript" src="{% static "safeviewservice/scripts/helper.js" %}"></script>
+    <script language="JavaScript" type="text/javascript" src="{% static "safeviewservice/scripts/jquery-1.12.0.min.js" %}"></script>
+    <script language="JavaScript" type="text/javascript" src="{% static "safeviewservice/scripts/qv1.min.js" %}"></script>
+
+    <style>
+        #banner {
+            height: 100px;
+            border: 1px solid #000;
+            margin: 0 0 5px 0;
+        }
+
+        .container {
+            position: relative;
+            padding: 0 0 0 260px;
+        }
+
+        #sidebar {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            left: 0;
+            border: 1px solid #000;
+            width: 250px;
+        }
+
+        .sidebar-group {
+            border: 1px solid #000;
+            padding: 2px 2px 2px 2px;
+            margin: 1px 1px 1px 1px;
+        }
+
+        #system-choice {
+            width: 100%;
+        }
+
+        #upload-choice {
+            width: 100%;
+        }
+
+        .sidebar-button {
+            width: 100%;
+            text-align: left;
+            border: 0;
+        }
+
+        #header {
+            border: 1px solid #000;
+            height: 100px;
+            margin: 0 0 5px 0;
+        }
+
+        #content {
+            border: 1px solid #000;
+            margin: 5px 0 5px 0;
+        }
+
+        #footer {
+            border: 1px solid #000;
+            height: 100px;
+            margin: 5px 0 0 0;
+        }
+    </style>
+
+</head>
+
+
+<body>
+
+<div id="banner">
+    Safelite Network Security Visualisation
+</div>
+
+
+<div class="container">
+
+
+    <div id="sidebar">
+        <div id="system-management">
+            <div class="sidebar-group">
+                <label for="system-choice">System</label>
+                <select id="system-choice" name="system-choice"></select>
+            </div>
+
+            <div class="sidebar-group">
+                <button class="sidebar-button" onclick="on_system_selected()">Display</button>
+                <br>
+                <button class="sidebar-button" onclick="add_system_prompt();">Add</button>
+                <br>
+                <button class="sidebar-button" onclick="del_system_prompt();">Delete</button>
+            </div>
+
+            <div class="sidebar-group">
+                <form id="upload-form" action="" method="post" enctype="multipart/form-data">
+                    <label for="upload-choice">Upload to</label>
+                    <select id="upload-choice" name="upload-choice"></select>
+                    <input type="file" name="upload-file" id="upload-file" value="Choose File">
+                    <br>
+                    <input type="submit" name="submit" class="sidebar-button" value="Upload">
+                </form>
+            </div>
+        </div>
+    </div>
+
+
+    <div id="header">
+
+    </div>
+
+
+    <div id="content">
+        <div id="harm-upper" align="center">
+
+        </div>
+
+        <div id="harm-lower" align="center">
+
+        </div>
+    </div>
+
+
+    <div id="footer">
+
+    </div>
+</div>
+
+
+<script language="JavaScript">
+
+    var upper_width = 640, upper_height = 500;
+    var lower_width = $(window).width() * 0.9, lower_height = $(window).height() * 0.9;
+
+
+    // TODO: Should it be really be initially hidden?
+    $("#harm-lower").hide();
+
+
+    function keys(dictionary) {
+        var keys = [];
+        for (var key in dictionary) {
+            if (dictionary.hasOwnProperty(key)) {
+                keys.push(key);
+            }
+        }
+        return keys;
+    }
+
+
+    function request_systems() {
+        // Check if the systems ids have been loaded already (not undefined).
+        if (sessionStorage["systems"] != null && JSON.parse(sessionStorage["systems"]) != null) {
+            return new Promise(function (resolve, reject) {
+                resolve(JSON.parse(sessionStorage["systems"]));
+            });
+        }
+        // Otherwise, create dictionary of system ids to nulls (unloaded data).
+        sessionStorage["systems"] = JSON.stringify({});
+        return new Promise(function (resolve, reject) {
+            $.ajax({
+                dataType: "json",
+                url: "/safeview/systems/",
+                success: function (system_ids, text_status, xhr) {
+                    // Returns a list of system ids.
+                    // Store each system id in the systems dictionary in local storage, mapped to a null to signify the
+                    // system hasn't been requested from the server yet.
+                    var systems = JSON.parse(sessionStorage["systems"]);
+                    var system_id;
+                    for (var i = 0; i < system_ids.length; i++) {
+                        system_id = system_ids[i];
+                        systems[system_id] = null;
+                    }
+                    // Store the processed results.
+                    sessionStorage["systems"] = JSON.stringify(systems);
+                    // Resolve.
+                    resolve(systems);
+                }
+            });
+        });
+    }
+
+
+    function request_system(system_id) {
+        return new Promise(function (resolve, reject) {
+            request_systems()
+            .then(function (systems) {
+                // Check if the system has already been loaded (not null).
+                if (systems[system_id] != null) {
+{#                    return new Promise(function (resolve, reject) {#}
+                    resolve(systems[system_id]);
+{#                    });#}
+                }
+                // Otherwise, create dictionary of snapshot/harm ids to nulls (unloaded harms).
+                systems[system_id] = {};
+{#                return new Promise(function (resolve, reject) {#}
+                    $.ajax({
+                        dataType: "json",
+                        url: "/safeview/systems/" + system_id + "/",
+                        success: function (snapshot_ids, text_status, xhr) {
+                            // Returns a list of harm ids.
+                            // Store each harm id in this systems dictionary, each mapped to a null to signify that the harm
+                            // has not been requested from the server yet.
+                            var harm_id;
+                            for (var i = 0; i < snapshot_ids.length; i++) {
+                                harm_id = snapshot_ids[i];
+                                systems[system_id][harm_id] = null;
+                            }
+                            // Store the processed results.
+                            sessionStorage["systems"] = JSON.stringify(systems);
+                            // Resolve.
+                            resolve(systems[system_id]);
+                        }
+                    });
+{#                });#}
+            });
+        });
+    }
+
+
+    function request_harm(system_id, harm_id) {
+        return new Promise(function (resolve, reject) {
+            request_system(system_id)
+            .then(function (system) {
+                // Check if the harm has already been loaded (not null).
+                if (system[harm_id] != null) {
+{#                    return new Promise(function (resolve, reject) {#}
+                        resolve(system[harm_id]);
+{#                    });#}
+                }
+{#                return new Promise(function (resolve, reject) {#}
+                    $.ajax({
+                        dataType: "json",
+                        url: "/safeview/harms/" + system_id + "/" + harm_id + "/",
+                        success: function (harm, text_status, xhr) {
+                            // Returns a harm (big ol' dictionary).
+                            system[harm_id] = harm;
+                            // Update session storage.
+                            var systems = JSON.parse(sessionStorage["systems"]);
+                            systems[system_id] = system;
+                            sessionStorage["systems"] = JSON.stringify(systems);
+                            // Resolve.
+                            resolve(system[system_id]);
+                        }
+                    });
+{#                });#}
+            });
+        });
+    }
+
+
+    function populate_system_ids() {
+        request_systems()
+        .then(function (systems) {
+            var system_ids = keys(systems);
+            var system_id;
+            for (var i = 0; i < system_ids.length; i++) {
+                system_id = system_ids[i];
+                // Add the system id option to the system choice selector.
+                $("#system-choice").append($("<option></option>").val(system_id).text(system_id));
+                // Add the system id option to the upload to system selector.
+                $("#upload-choice").append($("<option></option>").val(system_id).text(system_id));
+            }
+        });
+    }
+
+
+    function on_system_selected() {
+        var system_id = $("#system-choice").find("option:selected").text();
+        request_system(system_id)
+        .then(function (system) {
+            var snapshot_ids = keys(system);
+            var harm_id;
+            for (var i = 0; i < snapshot_ids.length; i++) {
+                harm_id = snapshot_ids[i];
+                request_harm(system_id, harm_id)
+                .then(function (harm) {
+                    display_harm(harm)
+                });
+            }
+        });
+    }
+
+
+    function display_harm(harm) {
+        // Create and store the upper svg.
+        var upper_svg = $("#harm-upper").append("svg")
+        .attr("height", upper_height)
+        .attr("width", upper_width);
+        
+        
+    }
+
+
+    populate_system_ids()
+</script>
+</body>
+</html>
