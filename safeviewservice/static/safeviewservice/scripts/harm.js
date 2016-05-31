@@ -1,232 +1,284 @@
-function harm_upper(svg, width, height, json, charge, callback) {
-    add_boarder(svg, width, height, 0, 0, "steelblue", "black", 1.0, 5);
-    var force = d3.layout.force()
-        .size([width, height])
-        .charge(charge)
-        .linkDistance(width / json.nodes.length)
-        .on("tick", tick);
-    var drag = force.drag()
-        .on("dragstart", dragstart);
-    var link = svg.selectAll(".link")
-        .data(json.links)
-        .enter()
-        .append("line")
-        .attr("class", "link");
-    var node = svg.selectAll(".node")
-        .data(json.nodes)
-        .enter()
-        .append("g")
-        .attr("class", "node")
-        .call(force.drag);
+/**
+ *
+ * @param harm
+ * @param svg
+ * @param width
+ * @param height
+ * @param charge
+ * @param on_click
+ */
+function harm_upper(harm, svg, width, height, charge, on_click) {
+    // Variables here.
+    var link_distance = width / harm.nodes.length;
 
-    force
-        .nodes(json.nodes)
-        .links(json.links)
-        .start();
+    var tx, ty = 0;
+    var opacity = 1.0;
+    var stroke = 5;
+    svg.append($("rect")
+        .attr("x", tx)
+        .attr("y", ty)
+        .attr("rx", 30)
+        .attr("ry", 30)
+        .attr("height", height)
+        .attr("width", width)
+        .style("stroke", "black")
+        .style("stroke-width", stroke)
+        .style("fill", "white")
+        .style("fill-opacity", opacity)
+    );
 
-    node.append("circle")
-        .attr("r", calc_radius)
-        .style("fill", function (d) {
-            return color_chooser(d);
-        });
 
-    node.append("text")
-        .attr("dx", calc_radius)
-        .attr("dy", ".35em")
-        .text(function (d) {
-            if (d.name == "Attacker") {
-                return d.name;
-            }
-            else if (d.value > 0.7) {
-                return d.name;
-            }
-        })
-        .style("fill", "white");
-
-    node.append("title")
-        .text(function (d) {
-            return d.name + "\n" +
-                "Breach Probability: " + Math.round(d.value * 100) + "%";
-        });
-
-    node.on("dblclick", callback);
-
-    function tick() {
-        link.attr("x1", function (d) {
-                return d.source.x;
+    // Create the force graph object.
+    this.force_graph = d3.layout.force()
+    .size([width, height])
+    .charge(charge)
+    .linkDistance(link_distance)
+    .on("tick",
+        function () {
+            super.link_elements.attr("x1", function (data) {
+                return data.source.x;
             })
-            .attr("y1", function (d) {
-                return d.source.y;
+            .attr("y1", function (data) {
+                return data.source.y;
             })
-            .attr("x2", function (d) {
-                return d.target.x;
+            .attr("x2", function (data) {
+                return data.target.x;
             })
-            .attr("y2", function (d) {
-                return d.target.y;
+            .attr("y2", function (data) {
+                return data.target.y;
             });
-        node.attr("cx", function (d) {
-                var r = calc_radius(d);
-                return d.x = Math.max(r, Math.min(width - r, d.x));
-            })
-            .attr("cy", function (d) {
-                var r = calc_radius(d);
-                return d.y = Math.max(r, Math.min(height - r, d.y));
-            })
-            .attr("transform", function (d) {
-                return "translate(" + d.x + "," + d.y + ")";
-            });
-    }
-
-    function dragstart(d) {
-        d3.select(this).classed("fixed", d.fixed = true);
-    }
-}
-
-
-function harm_lower(svg, width, height, root, source) {
-    add_boarder(svg, width, height, 0, 0, "steelblue", "black", 1.0, 5);
-    var i = 0, duration = 750;
-    var tree = d3.layout.tree()
-        .size([height, width]);
-    var diagonal = d3.svg.diagonal()
-        .projection(function (d) {
-            return [d.y, d.x];
-        });
-    var shift = (width - getDepth(root) * 200) / 2;
-    var nodes = tree.nodes(root).reverse();
-    var links = tree.links(nodes);
-
-    // Normalize for fixed-depth.
-    nodes.forEach(function (d) {
-        d.y = d.depth * 200 + shift;
-    });
-    // Update the nodes…
-    var node = svg.selectAll("g.node")
-        .data(nodes, function (d) {
-            return d.id = ++i;
         });
 
-    // Enter any new nodes at the parent's previous position.
-    var nodeEnter = node.enter().append("g")
-        .attr("class", "node")
-        .attr("transform", function (d) {
-            return "translate(" + source.y0 + "," + source.x0 + ")";
-        });
-    //.on("dblclick", click);
 
-    nodeEnter.append("circle")
-        .attr("r", 1e-6);
-
-    nodeEnter.append("text")
-        .attr("x",
-            function (d) {
-                return d.children || d._children ? 0 : calc_radius(d) + 2;
-            })
-        .attr("dy",
-            function (d) {
-                return d.children || d._children ? (-calc_radius(d) - 2) : 0;
-            })
-        .attr("text-anchor",
-            function (d) {
-                return d.children || d._children ? "middle" : "start";
-            })
-        .text(function (d) {
-            return d.name;
-        })
-        .style("fill-opacity", 1e-6)
-        .style("fill", "white");
-
-    nodeEnter.append("title")
-        .text(function (d) {
-            return "Breach Probability: " + Math.round(d.value * 100) + "%";
+    // Initialise dragging.
+    this.drag = this.force_graph.drag()
+    .on("dragstart",
+        function (data) {
+            d3.select(this).classed("fixed", data.fixed = true);
         });
 
-    // Transition nodes to their new position.
-    var nodeUpdate = node.transition()
-        .duration(duration)
-        .attr("transform",
-            function (d) {
-                return "translate(" + d.y + "," + d.x + ")";
-            });
 
-    nodeUpdate.select("circle")
-        .attr("r", calc_radius)
-        .style("fill", function (d) {
-            return color_chooser(d);
-        });
+    //
+    this.link_elements = svg.selectAll(".link")
+    .data(harm.links)
+    .enter()
+    .append("line")
+    .attr("class", "link");
 
-    nodeUpdate.select("text")
-        .style("fill-opacity", 1);
 
-    // Transition exiting nodes to the parent's new position.
-    var nodeExit = node.exit().transition()
-        .duration(duration)
-        .attr("transform",
-            function (d) {
-                return "translate(" + source.y + "," + source.x + ")";
-            })
-        .remove();
+    this.node_elements = svg.selectAll(".node")
+    .data(harm.nodes)
+    .enter()
+    .append("g")
+    .attr("class", "node")
+    .call(force.drag);
 
-    nodeExit.select("circle")
-        .attr("r", 1e-6);
 
-    nodeExit.select("text")
-        .style("fill-opacity", 1e-6);
+    this.force_graph.nodes(harm["node_elements"])
+    .links(harm.links)
+    .start();
 
-    // Update the links…
-    var link = svg.selectAll("path.link")
-        .data(links, function (d) {
-            return d.target.id;
-        });
 
-    // Enter any new links at the parent's previous position.
-    link.enter().insert("path", "g")
-        .attr("class", "link")
-        .attr("d", function (d) {
-            var o = {x: source.x0, y: source.y0};
-            return diagonal({source: o, target: o});
-        });
-
-    // Transition links to their new position.
-    link.transition()
-        .duration(duration)
-        .attr("d", diagonal);
-
-    // Transition exiting nodes to the parent's new position.
-    link.exit().transition()
-        .duration(duration)
-        .attr("d", function (d) {
-            var o = {x: source.x, y: source.y};
-            return diagonal({source: o, target: o});
-        })
-        .remove();
-
-    // Stash the old positions for transition.
-    nodes.forEach(function (d) {
-        d.x0 = d.x;
-        d.y0 = d.y;
+    this.node_elements.append("circle")
+    .attr("r", calc_radius)
+    .style("fill", function (data) {
+        return color_chooser(data);
     });
 
-    function click(d) {
-        if (d.children) {
-            d._children = d.children;
-            d.children = null;
-        } else {
-            d.children = d._children;
-            d._children = null;
+
+    this.node_elements.append("text")
+    .attr("dx", calc_radius)
+    .attr("dy", ".35em")
+    .text(function (data) {
+        if (data.name == "Attacker") {
+            return data.name;
+        } else if (data.value > 0.7) {
+            return data.name;
         }
-        harm_lower(svg, width, height, root, d);
-    }
+    })
+    .style("fill", "white");
+
+
+    this.node_elements.append("title")
+    .text(function (data) {
+        return data.name + "\n" +
+            "Breach Probability: " + Math.round(data.value * 100) + "%";
+    });
+
+
+    this.node_elements.on("dbclick", on_click);
 }
 
 
-function getDepth(obj) {
+/**
+ *
+ * @param root
+ * @param source
+ * @param svg
+ * @param width
+ * @param height
+ */
+function harm_lower(root, source, svg, width, height) {
+    var i = 0;
+    var duration = 750;
+    var shift = (width - get_depth(root) * 200) / 2;
+
+    var tx, ty = 0;
+    var opacity = 1.0;
+    var stroke = 5;
+    svg.append($("rect")
+        .attr("x", tx)
+        .attr("y", ty)
+        .attr("rx", 30)
+        .attr("ry", 30)
+        .attr("height", height)
+        .attr("width", width)
+        .style("stroke", "black")
+        .style("stroke-width", stroke)
+        .style("fill", "white")
+        .style("fill-opacity", opacity)
+    );
+
+
+    this.tree = d3.layout.tree()
+    .size([height, width]);
+
+
+    this.diagonal = d3.svg.diagonal()
+    .projection(function (data) {
+        return [data.y, data.x];
+    });
+
+
+    this.nodes = tree.nodes(root).reverse();
+
+    this.links = tree.links(this.nodes);
+
+
+    // Normalise for fixed - depth?
+    this.nodes.forEach(function (node) {
+        node.y = node.depth * 200 + shift;
+    });
+
+
+    // Update the nodes - seriously have no fucking idea what this is.
+    this.node_elements = svg.selectAll("g.node")
+    .data(this.nodes, function (node) {
+        return node.id = ++i;
+    });
+
+
+    //
+    this.node_enter = node.enter().append("g")
+    .attr("class", "node")
+    .attr("transform", function (d) {
+        return "translate(" + source.y0 + "," + source.x0 + ")";
+    })
+    //.on("dbclick", click); This was left commented out.
+
+
+    this.node_enter.append("circle")
+    .attr("r", 1e-6);
+
+
+    this.node_enter.append("text")
+    .attr("x", function (arg) {
+        return arg.children || arg._children ? 0 : calc_radius(arg) + 2;
+    })
+    .attr("dy", function (arg) {
+        return arg.children || arg._children ? (-calc_radius(arg) - 2) : 0;
+    })
+    .attr("text-anchor", function (arg) {
+        return arg.children || arg._children ? "middle" : "start";
+    })
+    .text(function (arg) {
+        return arg.name;
+    })
+    .style("fill-opacity", 1e-6)
+    .style("fill", "white");
+
+
+    this.node_enter.append("title")
+    .text(function (arg) {
+        return "Breach probability: " + Math.round(arg.value * 100) + "%";
+    });
+
+
+    // Transition nodes to their new position
+    this.node_update = this.node_elements.transition()
+    .duration(duration)
+    .attr("transform",
+        function (arg) {
+            return "translate(" + arg.y + "," + arg.x + ")";
+        });
+    this.node_update.select("circle")
+    .attr("r", calc_radius)
+    .style("fill", function (node) {
+        return color_chooser(node);
+    });
+    this.node_update.select("text")
+    .style("fill-opacity", 1);
+
+
+    this.node_exit = this.node_elements.exit().transition()
+    .duration(duration)
+    .attr("transform", function (node) {
+        return "translate(" + source.y + "," + source.x + ")";
+    })
+    .remove();
+    this.node_exit.select("circle")
+    .attr("r", 1e-6);
+    this.node_exit.select("text")
+    .style("fill-opacity", 1e-6);
+
+
+    // Update links.
+    this.link_elements = svg.selectAll("path.link")
+    .data(this.links, function (link) {
+        return link.target.id;
+    });
+    // Enter any new links at the parent's previous position.
+    this.link_elements.enter().insert("path", "g")
+    .attr("class", "link")
+    .attr("d", function (link) {
+        var o = {x: source.x0, y: source.y0};
+        return diagonal({source: o, target: o});
+    });
+    // Transition links to their new position.
+    this.link_elements.transition()
+    .duration(duration)
+    .attr("d", diagonal);
+    // Transition exiting nodes to the parent's new position.
+    this.link_elements.exit().transition()
+    .duration(duration)
+    .attr("d", function (link) {
+        var o = {x: source.x, y: source.y};
+        return diagonal({source: o, target: o});
+    })
+    .remove();
+
+
+    // Stash the old positions for the transition.
+    this.node_elements.forEach(function (node) {
+        node.x0 = node.x;
+        node.y0 = node.y;
+    });
+
+}
+
+
+/**
+ * Utility function to determine the depth of an object.
+ * @param obj
+ * @returns {number}
+ */
+function get_depth(obj) {
     var depth = 0;
     if (obj.children) {
-        obj.children.forEach(function (d) {
-            var tmpDepth = getDepth(d);
-            if (tmpDepth > depth) {
-                depth = tmpDepth;
+        obj.children.forEach(function (child) {
+            var temp_depth = get_depth(child);
+            if (temp_depth > depth) {
+                depth = temp_depth;
             }
         })
     }

@@ -6,10 +6,14 @@
 
     {% load static %}
     <script language="JavaScript" type="text/javascript" src="https://d3js.org/d3.v3.min.js"></script>
-    <script language="JavaScript" type="text/javascript" src="{% static "safeviewservice/scripts/d3.tip.v0.6.3.js" %}"></script>
-    <script language="JavaScript" type="text/javascript" src="{% static "safeviewservice/scripts/helper.js" %}"></script>
-    <script language="JavaScript" type="text/javascript" src="{% static "safeviewservice/scripts/jquery-1.12.0.min.js" %}"></script>
-    <script language="JavaScript" type="text/javascript" src="{% static "safeviewservice/scripts/qv1.min.js" %}"></script>
+    <script language="JavaScript" type="text/javascript"
+            src="{% static "safeviewservice/scripts/d3.tip.v0.6.3.js" %}"></script>
+    <script language="JavaScript" type="text/javascript"
+            src="{% static "safeviewservice/scripts/helper.js" %}"></script>
+    <script language="JavaScript" type="text/javascript"
+            src="{% static "safeviewservice/scripts/jquery-1.12.0.min.js" %}"></script>
+    <script language="JavaScript" type="text/javascript"
+            src="{% static "safeviewservice/scripts/qv1.min.js" %}"></script>
 
     <style>
         #banner {
@@ -193,32 +197,32 @@
             .then(function (systems) {
                 // Check if the system has already been loaded (not null).
                 if (systems[system_id] != null) {
-{#                    return new Promise(function (resolve, reject) {#}
+                    {#                    return new Promise(function (resolve, reject) {#}
                     resolve(systems[system_id]);
-{#                    });#}
+                    {#                    });#}
                 }
                 // Otherwise, create dictionary of snapshot/harm ids to nulls (unloaded harms).
                 systems[system_id] = {};
-{#                return new Promise(function (resolve, reject) {#}
-                    $.ajax({
-                        dataType: "json",
-                        url: "/safeview/systems/" + system_id + "/",
-                        success: function (snapshot_ids, text_status, xhr) {
-                            // Returns a list of harm ids.
-                            // Store each harm id in this systems dictionary, each mapped to a null to signify that the harm
-                            // has not been requested from the server yet.
-                            var harm_id;
-                            for (var i = 0; i < snapshot_ids.length; i++) {
-                                harm_id = snapshot_ids[i];
-                                systems[system_id][harm_id] = null;
-                            }
-                            // Store the processed results.
-                            sessionStorage["systems"] = JSON.stringify(systems);
-                            // Resolve.
-                            resolve(systems[system_id]);
+                {#                return new Promise(function (resolve, reject) {#}
+                $.ajax({
+                    dataType: "json",
+                    url: "/safeview/systems/" + system_id + "/",
+                    success: function (snapshot_ids, text_status, xhr) {
+                        // Returns a list of harm ids.
+                        // Store each harm id in this systems dictionary, each mapped to a null to signify that the harm
+                        // has not been requested from the server yet.
+                        var harm_id;
+                        for (var i = 0; i < snapshot_ids.length; i++) {
+                            harm_id = snapshot_ids[i];
+                            systems[system_id][harm_id] = null;
                         }
-                    });
-{#                });#}
+                        // Store the processed results.
+                        sessionStorage["systems"] = JSON.stringify(systems);
+                        // Resolve.
+                        resolve(systems[system_id]);
+                    }
+                });
+                {#                });#}
             });
         });
     }
@@ -230,26 +234,26 @@
             .then(function (system) {
                 // Check if the harm has already been loaded (not null).
                 if (system[harm_id] != null) {
-{#                    return new Promise(function (resolve, reject) {#}
-                        resolve(system[harm_id]);
-{#                    });#}
+                    {#                    return new Promise(function (resolve, reject) {#}
+                    resolve(system[harm_id]);
+                    {#                    });#}
                 }
-{#                return new Promise(function (resolve, reject) {#}
-                    $.ajax({
-                        dataType: "json",
-                        url: "/safeview/harms/" + system_id + "/" + harm_id + "/",
-                        success: function (harm, text_status, xhr) {
-                            // Returns a harm (big ol' dictionary).
-                            system[harm_id] = harm;
-                            // Update session storage.
-                            var systems = JSON.parse(sessionStorage["systems"]);
-                            systems[system_id] = system;
-                            sessionStorage["systems"] = JSON.stringify(systems);
-                            // Resolve.
-                            resolve(system[system_id]);
-                        }
-                    });
-{#                });#}
+                {#                return new Promise(function (resolve, reject) {#}
+                $.ajax({
+                    dataType: "json",
+                    url: "/safeview/harms/" + system_id + "/" + harm_id + "/",
+                    success: function (harm, text_status, xhr) {
+                        // Returns a harm (big ol' dictionary).
+                        system[harm_id] = harm;
+                        // Update session storage.
+                        var systems = JSON.parse(sessionStorage["systems"]);
+                        systems[system_id] = system;
+                        sessionStorage["systems"] = JSON.stringify(systems);
+                        // Resolve.
+                        resolve(system[harm_id]);
+                    }
+                });
+                {#                });#}
             });
         });
     }
@@ -290,11 +294,29 @@
 
     function display_harm(harm) {
         // Create and store the upper svg.
-        var upper_svg = $("#harm-upper").append("svg")
-        .attr("height", upper_height)
-        .attr("width", upper_width);
+        var upper_svg = $("#harm-upper").append(
+                $("<svg></svg>")
+                .attr("height", upper_height)
+                .attr("width", upper_width));
 
-        
+        harm_upper(harm, upper_svg, upper_width, upper_height, -300, on_node_clicked)
+    }
+
+
+    function on_node_clicked(node) {
+        // wtf is this ..
+        //$("#harm-lower").dialog();
+        // .. and wtf is this?
+        //$("#harm-lower").css('z-index', 9999);
+
+        // Drop old lower.
+        var lower_harm_container = $("#harm-lower");
+        lower_harm_container.remove("svg");
+        var lower_svg = lower_harm_container.append(
+                $("<svg></svg>")
+                .attr("height", lower_height)
+                .attr("width", lower_width));
+        harm_lower(node, node, lower_svg, lower_height, lower_width);
     }
 
 
