@@ -14,12 +14,50 @@
             src="{% static "safeviewservice/scripts/jquery-1.12.0.min.js" %}"></script>
     <script language="JavaScript" type="text/javascript"
             src="{% static "safeviewservice/scripts/qv1.min.js" %}"></script>
+    <script language="JavaScript" type="text/javascript"
+            src="{% static "safeviewservice/scripts/harm.js" %}"></script>
+    <script language="JavaScript" type="text/javascript"
+            src="{% static "safeviewservice/scripts/harm-graph.js" %}"></script>
 
     <style>
+        p {
+            font-family: "Helvetica Neue", sans-serif;
+            font-size: 10pt;
+        }
+
+        label {
+            font-family: "Helvetica Neue", sans-serif;
+            font-size: 10pt;
+        }
+
+        button {
+            font-family: "Helvetica Neue", sans-serif;
+            font-size: 9pt;
+        }
+
+        select {
+            font-family: "Helvetica Neue", sans-serif;
+            font-size: 10pt;
+        }
+
+        option {
+            font-family: "Helvetica Neue", sans-serif;
+            font-size: 9pt;
+        }
+
+        input {
+            font-family: "Helvetica Neue", sans-serif;
+            font-size: 10pt;
+        }
+
         #banner {
             height: 100px;
             border: 1px solid #000;
             margin: 0 0 5px 0;
+        }
+
+        #banner-title {
+            padding-left: 20px;
         }
 
         .container {
@@ -72,6 +110,35 @@
             height: 100px;
             margin: 5px 0 0 0;
         }
+
+        #harm-upper {
+            padding: 10px;
+{#            background-color: rgb(46, 46, 50);#}
+        }
+
+        #harm-lower {
+            padding: 10px;
+        }
+
+        .node {
+            font-family: "Helvetica Neue", sans-serif;
+            font-size: 8pt;
+            color: #222;
+{#            stroke: #fff;#}
+{#            stroke: rgb(46, 46, 50);#}
+{#            stroke-width: 1px;#}
+        }
+
+        circle {
+{#            stroke: rgb(46, 46, 50);#}
+            stroke: #fff;
+            stroke-width: 2px;
+        }
+
+        .link {
+            stroke: #999;
+            stroke-opacity: .6;
+        }
     </style>
 
 </head>
@@ -80,7 +147,7 @@
 <body>
 
 <div id="banner">
-    Safelite Network Security Visualisation
+    <p id="banner-title">Safelite Network Security Visualisation</p>
 </div>
 
 
@@ -91,15 +158,18 @@
         <div id="system-management">
             <div class="sidebar-group">
                 <label for="system-choice">System</label>
-                <select id="system-choice" name="system-choice"></select>
+                <select id="system-choice" name="system-choice" onchange="on_system_selected()"></select>
+                <br>
+                <button class="sidebar-button" onclick="add_system_prompt()">Add</button>
+                <br>
+                <button class="sidebar-button" onclick="del_system_prompt()">Delete</button>
             </div>
 
             <div class="sidebar-group">
-                <button class="sidebar-button" onclick="on_system_selected()">Display</button>
+                <label for="harm-choice">Harm</label>
+                <select id="harm-choice" name="harm-choice" onchange="on_harm_selected()"></select>
                 <br>
-                <button class="sidebar-button" onclick="add_system_prompt();">Add</button>
-                <br>
-                <button class="sidebar-button" onclick="del_system_prompt();">Delete</button>
+                <button class="sidebar-button" onclick="on_harm_selected()">Display</button>
             </div>
 
             <div class="sidebar-group">
@@ -138,9 +208,11 @@
 
 
 <script language="JavaScript">
+    var $content = $("#content");
+    var upper_width = $content.width() - 40, upper_height = 600;
+    var lower_width = $content.width() - 40, lower_height = 600;
 
-    var upper_width = 640, upper_height = 500;
-    var lower_width = $(window).width() * 0.9, lower_height = $(window).height() * 0.9;
+    var harm_graph;
 
 
     // TODO: Should it be really be initially hidden?
@@ -197,13 +269,10 @@
             .then(function (systems) {
                 // Check if the system has already been loaded (not null).
                 if (systems[system_id] != null) {
-                    {#                    return new Promise(function (resolve, reject) {#}
                     resolve(systems[system_id]);
-                    {#                    });#}
                 }
                 // Otherwise, create dictionary of snapshot/harm ids to nulls (unloaded harms).
                 systems[system_id] = {};
-                {#                return new Promise(function (resolve, reject) {#}
                 $.ajax({
                     dataType: "json",
                     url: "/safeview/systems/" + system_id + "/",
@@ -222,7 +291,6 @@
                         resolve(systems[system_id]);
                     }
                 });
-                {#                });#}
             });
         });
     }
@@ -232,74 +300,102 @@
         return new Promise(function (resolve, reject) {
             request_system(system_id)
             .then(function (system) {
+                var systems = JSON.parse(sessionStorage["systems"]);
                 // Check if the harm has already been loaded (not null).
-                if (system[harm_id] != null) {
-                    {#                    return new Promise(function (resolve, reject) {#}
-                    resolve(system[harm_id]);
-                    {#                    });#}
+                if (systems[system_id][harm_id] != null) {
+                    resolve(systems[system_id][harm_id]);
                 }
-                {#                return new Promise(function (resolve, reject) {#}
                 $.ajax({
                     dataType: "json",
                     url: "/safeview/harms/" + system_id + "/" + harm_id + "/",
                     success: function (harm, text_status, xhr) {
                         // Returns a harm (big ol' dictionary).
-                        system[harm_id] = harm;
                         // Update session storage.
                         var systems = JSON.parse(sessionStorage["systems"]);
-                        systems[system_id] = system;
+                        systems[system_id][harm_id] = harm;
                         sessionStorage["systems"] = JSON.stringify(systems);
                         // Resolve.
-                        resolve(system[harm_id]);
+                        resolve(systems[system_id][harm_id]);
                     }
                 });
-                {#                });#}
             });
         });
     }
 
 
     function populate_system_ids() {
-        request_systems()
-        .then(function (systems) {
-            var system_ids = keys(systems);
-            var system_id;
-            for (var i = 0; i < system_ids.length; i++) {
-                system_id = system_ids[i];
-                // Add the system id option to the system choice selector.
-                $("#system-choice").append($("<option></option>").val(system_id).text(system_id));
-                // Add the system id option to the upload to system selector.
-                $("#upload-choice").append($("<option></option>").val(system_id).text(system_id));
-            }
+        return new Promise(function (resolve, reject) {
+            request_systems()
+            .then(function (systems) {
+                var system_ids = keys(systems);
+                var system_id;
+                for (var i = 0; i < system_ids.length; i++) {
+                    system_id = system_ids[i];
+                    // Add the system id option to the system choice selector.
+                    $("#system-choice").append($("<option></option>").val(system_id).text(system_id));
+                    // Add the system id option to the upload to system selector.
+                    $("#upload-choice").append($("<option></option>").val(system_id).text(system_id));
+                }
+                resolve();
+            })
+        });
+    }
+
+
+    function populate_harm_ids(system_id) {
+        return new Promise(function (resolve, reject) {
+            request_system(system_id)
+            .then(function (system) {
+                var $harm_choice = $("#harm-choice");
+                // Drop the existing options.
+                $harm_choice.find("option").remove();
+
+                var harm_ids = keys(system);
+                var harm_id;
+                for (var i = 0; i < harm_ids.length; i++) {
+                    // Add the harm id option to the harm choice selector.
+                    harm_id = harm_ids[i];
+                    $harm_choice.append($("<option></option>").val(harm_id).text(harm_id));
+                }
+                resolve();
+            });
         });
     }
 
 
     function on_system_selected() {
-        var system_id = $("#system-choice").find("option:selected").text();
-        request_system(system_id)
-        .then(function (system) {
-            var snapshot_ids = keys(system);
-            var harm_id;
-            for (var i = 0; i < snapshot_ids.length; i++) {
-                harm_id = snapshot_ids[i];
-                request_harm(system_id, harm_id)
-                .then(function (harm) {
-                    display_harm(harm)
-                });
-            }
+        return new Promise(function (resolve, reject) {
+            var system_id = $("#system-choice").find("option:selected").text();
+            populate_harm_ids(system_id)
+                    .then(resolve);
         });
     }
 
 
-    function display_harm(harm) {
-        // Create and store the upper svg.
-        var upper_svg = $("#harm-upper").append(
-                $("<svg></svg>")
-                .attr("height", upper_height)
-                .attr("width", upper_width));
+    function on_harm_selected() {
+        return new Promise(function (resolve, reject) {
+            var system_id = $("#system-choice").find("option:selected").text();
+            var harm_id = $("#harm-choice").find("option:selected").text();
+            request_harm(system_id, harm_id)
+            .then(function (harm) {
+                // Remove he old harm.
+                $("#harm-upper").find("svg").remove();
 
-        harm_upper(harm, upper_svg, upper_width, upper_height, -300, on_node_clicked)
+                var d3$upper_svg = d3.select("#harm-upper")
+                        .append("svg")
+                        .attr("height", upper_height)
+                        .attr("width", upper_width);
+
+                //harm_upper(harm, upper_svg, upper_width, upper_height, -300, on_node_clicked);
+                harm_graph = new HarmGraph(d3$upper_svg, upper_width, upper_height);
+                harm_graph.addEntireHarm(harm);
+                harm_graph.update();
+                //harm_graph.addEntireHarm(harm);
+                console.log(harm_graph);
+
+                resolve();
+            });
+        });
     }
 
 
@@ -314,13 +410,23 @@
         lower_harm_container.remove("svg");
         var lower_svg = lower_harm_container.append(
                 $("<svg></svg>")
-                .attr("height", lower_height)
-                .attr("width", lower_width));
+                        .attr("height", lower_height)
+                        .attr("width", lower_width));
         harm_lower(node, node, lower_svg, lower_height, lower_width);
     }
 
 
+    // Initialise the system selector.
     populate_system_ids()
+    .then(function () {
+        // ... and then the harm selector.
+        var system_id = $("#system-choice").find("option:selected").text();
+        if (system_id !== null) {
+            populate_harm_ids(system_id)
+                    .then(on_harm_selected);
+        }
+    });
+
 </script>
 </body>
 </html>

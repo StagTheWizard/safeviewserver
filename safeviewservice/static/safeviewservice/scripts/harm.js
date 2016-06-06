@@ -11,31 +11,22 @@ function harm_upper(harm, svg, width, height, charge, on_click) {
     // Variables here.
     var link_distance = width / harm.nodes.length;
 
-    var tx, ty = 0;
+    var tx = 0, ty = 0;
     var opacity = 1.0;
     var stroke = 5;
-    svg.append($("rect")
+    svg.append("rect")
         .attr("x", tx)
         .attr("y", ty)
-        .attr("rx", 30)
-        .attr("ry", 30)
         .attr("height", height)
         .attr("width", width)
-        .style("stroke", "black")
+        .style("stroke", "grey")
         .style("stroke-width", stroke)
         .style("fill", "white")
-        .style("fill-opacity", opacity)
-    );
+        .style("fill-opacity", opacity);
 
 
-    // Create the force graph object.
-    this.force_graph = d3.layout.force()
-    .size([width, height])
-    .charge(charge)
-    .linkDistance(link_distance)
-    .on("tick",
-        function () {
-            super.link_elements.attr("x1", function (data) {
+    this.on_tick = function() {
+        this.link_elements.attr("x1", function (data) {
                 return data.source.x;
             })
             .attr("y1", function (data) {
@@ -47,7 +38,16 @@ function harm_upper(harm, svg, width, height, charge, on_click) {
             .attr("y2", function (data) {
                 return data.target.y;
             });
-        });
+    };
+
+
+    // Create the force graph object.
+    this.force_graph = d3.layout.force()
+    .size([width, height])
+    .charge(charge)
+    .linkDistance(link_distance)
+    .on("tick", this.on_tick);
+
 
 
     // Initialise dragging.
@@ -123,21 +123,18 @@ function harm_lower(root, source, svg, width, height) {
     var duration = 750;
     var shift = (width - get_depth(root) * 200) / 2;
 
-    var tx, ty = 0;
+    var tx = 0, ty = 0;
     var opacity = 1.0;
     var stroke = 5;
-    svg.append($("rect")
+    svg.append("rect")
         .attr("x", tx)
         .attr("y", ty)
-        .attr("rx", 30)
-        .attr("ry", 30)
         .attr("height", height)
         .attr("width", width)
-        .style("stroke", "black")
+        .style("stroke", "grey")
         .style("stroke-width", stroke)
         .style("fill", "white")
-        .style("fill-opacity", opacity)
-    );
+        .style("fill-opacity", opacity);
 
 
     this.tree = d3.layout.tree()

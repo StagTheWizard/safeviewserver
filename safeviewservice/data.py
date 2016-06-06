@@ -96,7 +96,7 @@ def get_system_paths():
 # Method 2
 # Supporting the following restful interface.
 # GET   /systems/
-#           returns a list of system id's for choice, like the original (current) "counttsecurity".
+#           returns a list of system id's for choice, like the original (current) "system1".
 #           used to display what systems are available to choose from.
 # GET   /systems/<system_id>/
 #           used to get the full data harms of a chosen system.
