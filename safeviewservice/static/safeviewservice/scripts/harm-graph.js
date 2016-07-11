@@ -99,8 +99,24 @@ function HarmGraph(d3$svg, width, height) {
         force = d3.layout.force()
             .size([width, height])
             .charge(charge)
+            //.charge(function (node, i) {
+            //    if (node.expanded ) {
+            //        return charge - 300;
+            //    } else {
+            //        return charge;
+            //    }
+            //})
             .gravity(gravity)
             .linkDistance(link_distance)
+            //.linkDistance(function (link, i) {
+            //    if (link.source.expanded && link.target.expanded) {
+            //        return link_distance + 100;
+            //    } else if (link.source.expanded || link.target.expanded) {
+            //        return link_distance + 50;
+            //    } else {
+            //        return link_distance;
+            //    }
+            //})
             .on("tick", this.on_tick);
 
         var zoom = d3.behavior.zoom()
@@ -115,7 +131,7 @@ function HarmGraph(d3$svg, width, height) {
         view = d3$svg.append("g");
 
         //force.drag()
-        //    .on("dragstart", on_drag_start);
+        //    .on("dragstart", this.on_drag_start);
 
         // Creates the graph data structure.
         force
@@ -266,7 +282,7 @@ function Title(node) {
 function Text(node) {
     if (node.name == "Attacker") {
         return node.name;
-    } else {
+    } else if (node.value > 0.5) {
         return node.name;
     }
 }
@@ -316,8 +332,8 @@ function RenderDefault(d3$node, node, i) {
  */
 function RenderSunburst(d3$node, node, i) {
     console.log("Rendering node " + node.id + "[expanded=" + node.expanded + "]");
-    var height = 100,
-        width = 100,
+    var height = 60,
+        width = 60,
         radius = Math.min(width, height) / 2,
         color = d3.scale.category20c();
 
