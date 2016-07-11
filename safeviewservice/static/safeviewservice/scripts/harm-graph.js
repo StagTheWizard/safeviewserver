@@ -7,6 +7,10 @@
  * which space the entire Harm itself will persist.
  *
  * Created by montgomeryAnderson on 6/06/16.
+ *
+ * @param d3$svg
+ * @param width
+ * @param height
  */
 function HarmGraph(d3$svg, width, height) {
 
@@ -23,7 +27,7 @@ function HarmGraph(d3$svg, width, height) {
     var d3$links;
 
 
-    var on_tick = function () {
+    this.on_tick = function () {
         // Per tick link updates.
         d3$links
             .attr("x1", function (link) {
@@ -55,17 +59,29 @@ function HarmGraph(d3$svg, width, height) {
     };
 
 
-    var on_drag_start = function (data) {
+    this.on_drag_start = function (data) {
         d3.select(this).classed("fixed", data.fixed = true);
     };
 
 
-    var on_click = function (node) {
-        // TODO implement on-click functionality.
+    this.on_dblclick = function (node, i) {
+        console.log("Event[dblclick] on node " + node.id);
+        console.log(node.value);
+        // Expand the node.
+        node.expanded = node.expanded ? false : true;
+
+        var d3$node = d3.select(this);
+        d3$node.selectAll("*").remove();
+
+        if (node.expanded) {
+            RenderSunburst(d3$node, node, i);
+        } else {
+            RenderDefault(d3$node, node, i);
+        }
     };
 
 
-    var on_zoom = function () {
+    this.on_zoom = function () {
         view.attr("transform", "translate(" + d3.event.translate + ")scale(" + d3.event.scale + ")");
     };
 
@@ -76,15 +92,19 @@ function HarmGraph(d3$svg, width, height) {
      */
     this.update = function () {
         var link_distance = Math.max(width / nodes.length, 60);
+        var k = Math.sqrt(nodes.length / (width * height));
+        var charge = -10 / k;
+        var gravity = 100 * k;
 
         force = d3.layout.force()
             .size([width, height])
-            .charge(-120)
+            .charge(charge)
+            .gravity(gravity)
             .linkDistance(link_distance)
-            .on("tick", on_tick);
+            .on("tick", this.on_tick);
 
         var zoom = d3.behavior.zoom()
-            .on("zoom", on_zoom);
+            .on("zoom", this.on_zoom);
         d3$svg
             .attr("pointer-events", "all")
             .attr("viewBox", "0 0 " + width + " " + height)
@@ -103,35 +123,37 @@ function HarmGraph(d3$svg, width, height) {
             .links(links)
             .start();
 
+        // Links enter.
         d3$links = view.selectAll(".link")
             .data(links)
             .enter()
-            .append("line")
-            .attr("class", "link");
+                .append("line")
+                .attr("class", "link");
 
+        // Nodes enter.
         d3$nodes = view.selectAll(".node")
             .data(nodes)
             .enter()
-            .append("g")
-            .attr("class", "node")
-            .call(force.drag);
+                .append("g")
+                .attr("class", "node")
+                .each(RenderNode)
+                .call(force.drag);
 
-        d3$nodes.append("circle")
-            .attr("r", Radius)
-            .style("fill", Color);
+        // Nodes double click.
+        d3$nodes.on("dblclick", this.on_dblclick);
 
-        d3$nodes.append("text")
-            .attr("dx", Radius)
-            .attr("dy", ".35em")
-            .text(Text);
+        // Nodes update.
+        //d3$nodes.update()
+        //    .each(RenderNode);
 
+        // Nodes title.
         d3$nodes.append("title", Title);
 
-        //d3$nodes.on("dblclick", on_click);
     };
 
 
     this.addNode = function (node) {
+        node.expanded = false;
         nodes.push(node);
     };
 
@@ -225,7 +247,7 @@ function Color(node) {
         //} else if (node.value / 10 > 1.0 || node.value / 10 < 0) {
         //    return "lightblue";
     } else {
-        return "orange";
+        return MapToPalette(node);
     }
 }
 
@@ -248,3 +270,150 @@ function Text(node) {
         return node.name;
     }
 }
+
+
+/**
+ *
+ * @param node
+ * @param i
+ */
+function RenderNode(node, i) {
+    var d3$node = d3.select(this);
+
+    if (node.expanded) {
+        RenderSunburst(d3$node, node, i);
+    } else {
+        RenderDefault(d3$node, node, i);
+    }
+}
+
+
+/**
+ *
+ * @param d3$node
+ * @param node
+ * @param i
+ */
+function RenderDefault(d3$node, node, i) {
+    console.log("Rendering node " + node.id + "[expanded=" + node.expanded + "]");
+    d3$node.append("circle")
+        .attr("r", Radius)
+        .style("fill", Color);
+
+    d3$node.append("text")
+        .attr("dx", Radius)
+        .attr("dy", ".35em")
+        .text(Text);
+}
+
+
+/**
+ * Takes a d3 node selection (group element) and renders within it a sunburst
+ * based on the nodes vulnerability tree.
+ * @param d3$node   D3 selection of node element (<g></g>)
+ * @param node      The bound node data
+ * @param i         The node index
+ */
+function RenderSunburst(d3$node, node, i) {
+    console.log("Rendering node " + node.id + "[expanded=" + node.expanded + "]");
+    var height = 100,
+        width = 100,
+        radius = Math.min(width, height) / 2,
+        color = d3.scale.category20c();
+
+    var partition = d3.layout.partition()
+        .sort(null)
+        .size([2 * Math.PI, radius * radius])
+        .value(function (data) {
+            return data.value;
+        });
+
+    var arc = d3.svg.arc()
+        .startAngle(function (data) {
+            return data.x;
+        })
+        .endAngle(function (data) {
+            return data.x + data.dx;
+        })
+        .innerRadius(function (data) {
+            return Math.sqrt(data.y);
+        })
+        .outerRadius(function (data) {
+            return Math.sqrt(data.y + data.dy);
+        });
+
+    var d3$path = d3$node.datum(node).selectAll("path")
+        .data(partition.nodes)
+        .enter().append("path")
+            .attr("display", function (tree_node) {
+                return tree_node.depth; // ? null : "none"; // hides the innermost ring
+            })
+            .attr("d", arc)
+            .style("stroke", "#fff")
+            .style("fill", function (tree_node) {
+                if (tree_node.type == "host" || tree_node.type == "sibling") {
+                    return MapToPalette(tree_node);
+                } else { // tree_node.type == "and" | "or"
+                    return "#777";
+                }
+            })
+            .style("fill-rule", "evenodd")
+            .each(Stash);
+
+    d3$node.append("text")
+        .attr("dx", Radius)
+        .attr("dy", ".35em")
+        .text(Text);
+
+    //d3$path.data(
+    //    partition.value(function (tree_node) {
+    //        return tree_node.value;
+    //    }).nodes);
+        //.transition()
+        //.duration(1500)
+        //.attrTween("d", function (a) {
+        //    var i = d3.interpolate({x: a.x0, dx: a.dx0}, a);
+        //    return function (t) {
+        //        var b = i(t);
+        //        a.x0 = b.x;
+        //        a.dx0 = b.x0;
+        //        return arc(b);
+        //    };
+        //});
+}
+
+
+function Stash(data) { // stash the
+    data.x0 = data.x;
+    data.dx0 = data.dx;
+}
+
+
+function MapToPalette(node, fn) {
+    if (fn == null) {
+        fn = function (n) {
+            return n.value;
+        };
+    }
+    // Then..
+    if (fn(node) < 0.15) {
+        return Palette[0];
+    } else if (0.15 < fn(node) < 0.4) {
+        return Palette[1];
+    } else if (0.4 < fn(node) < 0.6) {
+        return Palette[2];
+    } else if (0.6 < fn(node) < 0.85) {
+        return Palette[3];
+    } else { // 0.85 < fn(node)
+        return Palette[4];
+    }
+}
+
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/**
+ * BELOW IS THE .
+ */
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+Palette = ["#30638E", "#7EA8BE", "#FBD1A2", "#FC9F5B", "#FF5D73"];

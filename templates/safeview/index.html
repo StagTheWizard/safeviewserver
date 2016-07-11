@@ -15,8 +15,6 @@
     <script language="JavaScript" type="text/javascript"
             src="{% static "safeviewservice/scripts/qv1.min.js" %}"></script>
     <script language="JavaScript" type="text/javascript"
-            src="{% static "safeviewservice/scripts/harm.js" %}"></script>
-    <script language="JavaScript" type="text/javascript"
             src="{% static "safeviewservice/scripts/harm-graph.js" %}"></script>
 
     <style>
@@ -113,7 +111,7 @@
 
         #harm-upper {
             padding: 10px;
-{#            background-color: rgb(46, 46, 50);#}
+        {#            background-color: rgb(46, 46, 50);#}
         }
 
         #harm-lower {
@@ -124,14 +122,11 @@
             font-family: "Helvetica Neue", sans-serif;
             font-size: 8pt;
             color: #222;
-{#            stroke: #fff;#}
-{#            stroke: rgb(46, 46, 50);#}
-{#            stroke-width: 1px;#}
+        {#            stroke: #fff;#}{#            stroke: rgb(46, 46, 50);#}{#            stroke-width: 1px;#}
         }
 
         circle {
-{#            stroke: rgb(46, 46, 50);#}
-            stroke: #fff;
+        {#            stroke: rgb(46, 46, 50);#} stroke: #fff;
             stroke-width: 2px;
         }
 
@@ -265,8 +260,7 @@
 
     function request_system(system_id) {
         return new Promise(function (resolve, reject) {
-            request_systems()
-            .then(function (systems) {
+            request_systems().then(function (systems) {
                 // Check if the system has already been loaded (not null).
                 if (systems[system_id] != null) {
                     resolve(systems[system_id]);
@@ -298,8 +292,7 @@
 
     function request_harm(system_id, harm_id) {
         return new Promise(function (resolve, reject) {
-            request_system(system_id)
-            .then(function (system) {
+            request_system(system_id).then(function (system) {
                 var systems = JSON.parse(sessionStorage["systems"]);
                 // Check if the harm has already been loaded (not null).
                 if (systems[system_id][harm_id] != null) {
@@ -325,8 +318,7 @@
 
     function populate_system_ids() {
         return new Promise(function (resolve, reject) {
-            request_systems()
-            .then(function (systems) {
+            request_systems().then(function (systems) {
                 var system_ids = keys(systems);
                 var system_id;
                 for (var i = 0; i < system_ids.length; i++) {
@@ -344,8 +336,7 @@
 
     function populate_harm_ids(system_id) {
         return new Promise(function (resolve, reject) {
-            request_system(system_id)
-            .then(function (system) {
+            request_system(system_id).then(function (system) {
                 var $harm_choice = $("#harm-choice");
                 // Drop the existing options.
                 $harm_choice.find("option").remove();
@@ -366,8 +357,7 @@
     function on_system_selected() {
         return new Promise(function (resolve, reject) {
             var system_id = $("#system-choice").find("option:selected").text();
-            populate_harm_ids(system_id)
-                    .then(resolve);
+            populate_harm_ids(system_id).then(resolve);
         });
     }
 
@@ -376,8 +366,7 @@
         return new Promise(function (resolve, reject) {
             var system_id = $("#system-choice").find("option:selected").text();
             var harm_id = $("#harm-choice").find("option:selected").text();
-            request_harm(system_id, harm_id)
-            .then(function (harm) {
+            request_harm(system_id, harm_id).then(function (harm) {
                 // Remove he old harm.
                 $("#harm-upper").find("svg").remove();
 
@@ -399,6 +388,10 @@
     }
 
 
+    /**
+     * @deprecated
+     * @param node
+     */
     function on_node_clicked(node) {
         // wtf is this ..
         //$("#harm-lower").dialog();
@@ -409,21 +402,17 @@
         var lower_harm_container = $("#harm-lower");
         lower_harm_container.remove("svg");
         var lower_svg = lower_harm_container.append(
-                $("<svg></svg>")
-                        .attr("height", lower_height)
-                        .attr("width", lower_width));
+                $("<svg></svg>").attr("height", lower_height).attr("width", lower_width));
         harm_lower(node, node, lower_svg, lower_height, lower_width);
     }
 
 
     // Initialise the system selector.
-    populate_system_ids()
-    .then(function () {
+    populate_system_ids().then(function () {
         // ... and then the harm selector.
         var system_id = $("#system-choice").find("option:selected").text();
         if (system_id !== null) {
-            populate_harm_ids(system_id)
-                    .then(on_harm_selected);
+            populate_harm_ids(system_id).then(on_harm_selected);
         }
     });
 
