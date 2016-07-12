@@ -134,6 +134,23 @@
             stroke: #999;
             stroke-opacity: .6;
         }
+
+        div.tooltip {
+            position: absolute;
+            text-align: center;
+            height: 28px;
+            padding: 2px;
+            font: 12px sans-serif;
+            background: #DDD;
+            border: 0px;
+            border-radius: 4px;
+            pointer-events: none;
+        }
+
+        #query-div {
+            padding-top: 10px;
+            padding-left: 20px;
+        }
     </style>
 
 </head>
@@ -176,6 +193,11 @@
                     <input type="submit" name="submit" class="sidebar-button" value="Upload">
                 </form>
             </div>
+        </div>
+
+        <div id="query-management" class="sidebar-group">
+            <label for="harm-query">Query host names:</label>
+            <input id="harm-query" type="text" onchange="on_query_changes(this.value)">
         </div>
     </div>
 
@@ -385,6 +407,22 @@
                 resolve();
             });
         });
+    }
+
+
+    function on_query_changes(query) {
+        console.log("changed '" + query + "'");
+        var d3$nodes = d3.selectAll(".node");
+        d3$nodes.attr("opacity", 0.3);
+        d3$nodes.filter(function (node) {
+            return node.name.includes(query);
+        }).attr("opacity", 1);
+
+        var d3$links = d3.selectAll(".link");
+        d3$links.attr("opacity", 0.3);
+        d3$links.filter(function (link) {
+            return link.source.name.includes(query) && link.target.name.includes(query);
+        })
     }
 
 
