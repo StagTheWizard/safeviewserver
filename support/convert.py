@@ -5,27 +5,74 @@ python3 convert.py [-i] <input_file> [<output_file>]
 
 """
 
-import json, xml.etree.cElementTree as etree
+import json
 import sys
+from pathlib import Path
+import xml.etree.cElementTree as eTree
 
 
 def read_json(json_str):
-    harm_dict = json.loads(json_str)
+    json_harm = json.loads(json_str)
+    nodes = []
+    edges = []
+
+    for json_node in json_harm['nodes']:
+        nodes.append({
+            'id': json_node['id'],
+            'name': json_node['name'],
+            'values': {
+                'impact': json_node['value']
+            },
+            # Will be [] for 'Attacker' - and will handle odd multi-roots
+            'vulnerabilities': [read_json_vulnerability(root) for root in json_node['children']]
+        })
+
+    for json_edge in json_harm['links']:
+        edges.append({
+            'source': json_edge['source'],
+            'target': json_edge['target'],
+            'values': {}
+        })
+
+    harm = {
+        'nodes': nodes,
+        'edges': edges,
+        'upperLayer': []
+    }
+    return harm
+
+
+def read_json_vulnerability(json_vulnerability):
+    if json_vulnerability['type'] is 'sibling':
+        return {
+            'id': json_vulnerability['id'],
+            'name': json_vulnerability['name'],
+            'type': json_vulnerability['type'],
+            'values': {
+                'poe': json_vulnerability['value']
+            }
+        }
+    else:  # json_vulnerability['type'] is in ['or', 'and']:
+        return {
+            'id': json_vulnerability['id'],
+            'name': json_vulnerability['name'],
+            'type': json_vulnerability['type'],
+            'children': [read_json_vulnerability(child) for child in json_vulnerability['children']]
+        }
 
 
 def read_xml(xml_str):
     pass
 
 
-def write_json(harm):
+def parse_json(harm):
     pass
 
 
-def write_xml(harm):
+def parse_xml(harm):
     # Create the root harm element
-    xml_harm = etree.Element(
-        tag='harm',
-        attrib={
+    xml_harm = eTree.Element(
+        'harm', attrib={
             'xmlns':
                 'http://localhost:8000/safeview/harm',
             'xmlns:xsi':
@@ -35,135 +82,146 @@ def write_xml(harm):
         })
 
     # <nodes>
-    xml_nodes = etree.Element(tag='nodes')
+    xml_nodes = eTree.Element('nodes')
     for node in harm['nodes']:
-        xml_nodes.append(parse_node_to_xml(node))
+        xml_nodes.append(convert_node_to_xml(node))
     xml_harm.append(xml_nodes)
 
     # <edges>
-    xml_edges = etree.Element(tag='edges')
+    xml_edges = eTree.Element('edges')
     for edge in harm['edges']:
-        xml_edges.append(parge_edge_to_xml(edge))
+        xml_edges.append(convert_edge_to_xml(edge))
     xml_harm.append(xml_edges)
 
     # <upperLayers>
-    xml_upper_layers = etree.Element(tag='upperLayers')
+    xml_upper_layers = eTree.Element('upperLayers')
     xml_harm.append(xml_upper_layers)
 
     return xml_harm
 
 
-def parse_node_to_xml(node):
-    xml_node = etree.Element(
-        tag='node',
-        attrib={
-            'id': node.id,
-            'name': node.name
+def convert_node_to_xml(node):
+    xml_node = eTree.Element(
+        'node', attrib={
+            'id': node['id'],
+            'name': node['name']
         })
 
     # <values>
-    xml_values = etree.Element(tag='values')
-    for key, value in node['values']:
+    xml_values = eTree.Element('values')
+    for key, value in node['values'].items():
         # <value>
-        xml_value = etree.Element(tag=key)
-        xml_value.text = value
+        xml_value = eTree.Element(key)
+        xml_value.text = str(value)
         xml_values.append(xml_value)
     xml_node.append(xml_values)
 
     # <vulnerabilities>
-    xml_vulnerabilities = etree.Element(tag='vulnerabilities')
-    root_vulnerability = node['vulnerabilities'][0]
-    xml_vulnerabilities.append(parse_vulnerability_to_xml(root_vulnerability))
+    xml_vulnerabilities = eTree.Element('vulnerabilities')
+    if node['name'] is 'Attacker':
+        root_vulnerability = node['vulnerabilities'][0]
+        xml_vulnerabilities.append(parse_vulnerability_to_xml(root_vulnerability))
     xml_node.append(xml_vulnerabilities)
 
     return xml_node
 
 
-def parge_edge_to_xml(edge):
-    xml_edge = etree.Element(tag='edge')
+def convert_edge_to_xml(edge):
+    xml_edge = eTree.Element('edge')
 
-    xml_source = etree.Element(tag='source')
-    xml_source.text = edge['source']
+    xml_source = eTree.Element('source')
+    xml_source.text = str(edge['source'])
     xml_edge.append(xml_source)
 
-    xml_target = etree.Element(tag='target')
-    xml_target.text = edge['target']
+    xml_target = eTree.Element('target')
+    xml_target.text = str(edge['target'])
     xml_edge.append(xml_target)
 
     # <values>
-    xml_values = etree.Element(tag='values')
-    for key, value in edge['values']:
+    xml_values = eTree.Element('values')
+    for key, value in edge['values'].items():
         # <value>
-        xml_value = etree.Element(tag=key)
-        xml_value.text = value
+        xml_value = eTree.Element(key)
+        xml_value.text = str(value)
         xml_values.append(xml_value)
 
     xml_edge.append(xml_values)
+    return xml_edge
 
 
 def parse_vulnerability_to_xml(vulnerability):
-    if vulnerability.type is 'vulnerability':
+    if vulnerability['type'] is 'vulnerability':
         # <vulnerability name id>
-        xml_vulnerability = etree.Element(
-            tag=vulnerability.type,
-            attrib={
+        xml_vulnerability = eTree.Element(
+            vulnerability.type, attrib={
                 'id': vulnerability.id,
                 'name': vulnerability.name
             })
-        pass
+        # <values>
+        xml_values = eTree.Element('values')
+        for key, value in vulnerability['values'].items():
+            # <value>
+            xml_value = eTree.Element(key)
+            xml_value.text = str(value)
+            xml_values.append(xml_value)
+        xml_vulnerability.append(xml_values)
+
     else:  # vulnerability.type is in ['or', 'and']:
-        xml_vulnerability = etree.Element(tag=vulnerability.type)
-        for child in vulnerability.children:
+        # <and> | <or>
+        xml_vulnerability = eTree.Element(vulnerability['type'])
+        for child in vulnerability['children']:
             # Recurse
             xml_vulnerability.append(parse_vulnerability_to_xml(child))
+
     return xml_vulnerability
 
 
-def json_to_xml(json_file):
-    json_str = open(json_file, mode='r').readlines()
+def json_to_xml(json_str):
     harm = read_json(json_str)
-    write_xml(harm)
-
-
-def xml_to_json(xml_file):
-    xml_str = open(xml_file, mode='r').readlines()
-    harm = read_xml(xml_str)
-    write_json(harm)
+    return parse_xml(harm)
 
 
 def main(argv):
     if len(argv) > 0:
-        if argv[0] is "-i":
-            # argv[2] is input file, optional argv[3] is output file
-            run_xml_to_json(argv[1:])
-        # elif len(argv) > 0:
-        else:
-            # argv[1] is input file, optional argv[2] is output file
-            run_json_to_xml(argv)
+        return run_json_to_xml(argv)
     else:
         prompt_usage()
 
 
-def prompt_usage():
-    pass
-
-
-def run_xml_to_json(argv):
+def run_json_to_xml(argv):
+    print(argv)
     if len(argv) == 0:
         # prompt
+        prompt_usage()
         return
-    elif len(argv) == 1:
-        pass
-    else:
-        pass
+    else:  # len(argv) >= 1:
+        for arg in argv:
+            json_path = Path(arg)
+            if not json_path.exists():
+                prompt("Input file \"%s\" does not exist" % str(arg))
+            elif not json_path.is_file():
+                prompt("Input path does not point to a file")
+            elif len(json_path.name) < 5 and json_path.name[-5:] != '.json':
+                prompt("Input path is not a json file")
+                # Potentially offer to continue regardless? y/n prompt
+            else:  # consider validated
+                prompt("Converting \"%s\" to xml" % str(arg))
+                output_xml_path = Path(json_path.parent.joinpath(json_path.name[:-5] + '.xml'))
+                json_str = ''
+                for line in json_path.open(mode='r').readlines():
+                    json_str += line
+                xml_root_element = json_to_xml(json_str)
+                eTree.ElementTree(xml_root_element).write(str(output_xml_path))
+                prompt("Saved to \"%s\"" % str(output_xml_path))
+            return
 
-    # validate files
-    # prompt if overwriting
-    # execute
+
+def prompt(text):
+    print(text)
 
 
-def run_json_to_xml(argv):
-    pass
+def prompt_usage():
+    print("usage: python3 convert.py [json files ...]")
 
 
 if __name__ == "__main__":
