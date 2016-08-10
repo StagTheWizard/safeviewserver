@@ -8,6 +8,7 @@ import os
 from safeviewservice.models import *
 from pathlib import Path
 import json
+import xml.etree.ElementTree as etree
 
 _initialised = False
 SYSTEMS = dict()
@@ -103,7 +104,12 @@ def get_system_paths():
 ########################################################################################################################
 def get_systems():
     systems = os.listdir("./data")
-    return systems
+
+    xml_systems = etree.Element('systems')
+    for system_id in systems:
+        xml_system = etree.Element('system', attrib={'id': system_id})
+        xml_systems.append(xml_system)
+    return xml_systems
 
 
 def get_system(system_id):
@@ -112,8 +118,12 @@ def get_system(system_id):
     # Create the system path.
     system_path = "./data/{0}/".format(system_id)
     # Get the path of all snapshots within the systems.
-    snapshots = [snapshot_file.strip(".json") for snapshot_file in os.listdir(system_path)]
-    return snapshots
+    snapshots = [snapshot_file.strip(".xml") for snapshot_file in os.listdir(system_path)]
+    xml_system = etree.Element('system', attrib={'id': system_id})
+    for harm_id in snapshots:
+        xml_harm = etree.Element('harm', attrib={'id': harm_id})
+        xml_system.append(xml_harm)
+    return xml_system
 
 
 def get_harm(system_id, harm_id):
@@ -122,8 +132,7 @@ def get_harm(system_id, harm_id):
     system_path = "./data/{0}/".format(system_id)
     # Get the path of all snapshots within the systems.
     for snapshot_filename in os.listdir(system_path):
-        if snapshot_filename.strip(".json") == harm_id:
+        if snapshot_filename.strip(".xml") == harm_id:
             snapshot_path = system_path + "/" + snapshot_filename
-            return json.load(open(snapshot_path))
-    # ...much optimism is needed.
-
+            return etree.parse(open(snapshot_path))
+            # ...much optimism is needed.

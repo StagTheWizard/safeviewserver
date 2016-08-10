@@ -3,6 +3,7 @@ from django.shortcuts import render
 from django.http import HttpResponse
 from django.http import HttpResponseServerError
 import json
+import xml.etree.ElementTree as etree
 from . import models
 from . import data
 
@@ -18,8 +19,8 @@ def systems_list(request):
     :param request:     The HTTP request object.
     """
     if request.method == 'GET':
-        system_ids = data.get_systems()
-        return HttpResponse(json.dumps(system_ids))
+        et_systems = data.get_systems()
+        return HttpResponse(etree.tostring(et_systems, encoding='utf8', method='xml'))
     # Only HTTP GET is currently supported for systems.
     elif request.method == 'POST':
         return HttpResponse("Not Implemented", status=501)
@@ -36,8 +37,8 @@ def systems(request, system_id):
     :param request:     The HTTP request object.
     """
     if request.method == 'GET':
-        system = data.get_system(system_id)
-        return HttpResponse(json.dumps(system))
+        et_system = data.get_system(system_id)
+        return HttpResponse(etree.tostring(et_system, encoding='utf8', method='xml'))
     # Only HTTP GET is currently supported for systems.
     elif request.method == 'POST':
         return HttpResponse("Not Implemented", status=501)
@@ -56,8 +57,8 @@ def harms(request, system_id, harm_id):
     :return:
     """
     if request.method == 'GET':
-        harm = data.get_harm(system_id, harm_id)
-        return HttpResponse(json.dumps(harm))
+        et_harm = data.get_harm(system_id, harm_id)
+        return HttpResponse(etree.tostring(et_harm, encoding='utf8', method='xml'))
     # Only HTTP GET is currently supported for systems.
     elif request.method == 'POST':
         return HttpResponse("Not Implemented", status=501)

@@ -1,0 +1,58 @@
+<harm xmlns="http://localhost:8000/safeview/harm" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:schemaLocation="http://localhost:8000/safeview/harm http://localhost:8000/static/safevoewservoce/xml/harm.xsd">
+    <nodes>
+        <node id="ID_8034861129" name="Firewall">
+            <values>
+                <impact>1.0</impact>
+            </values>
+            <vulnerabilities/>
+        </node>
+        <node id="ID_8494541927" name="132.181.13.159">
+            <values>
+                <impact>0.4524</impact>
+            </values>
+            <vulnerabilities/>
+        </node>
+        <node id="ID_4672500439" name="132.181.13.79">
+            <values>
+                <impact>0.4524</impact>
+            </values>
+            <vulnerabilities/>
+        </node>
+        <node id="ID_9013478075" name="132.181.13.58">
+            <values>
+                <impact>0.4524</impact>
+            </values>
+            <vulnerabilities/>
+        </node>
+        <node id="ID_8172273022" name="Attacker">
+            <values>
+                <impact>1.0</impact>
+            </values>
+            <vulnerabilities/>
+        </node>
+    </nodes>
+    <edges>
+        <edge>
+            <source>4</source>
+            <target>0</target>
+            <values/>
+        </edge>
+        <edge>
+            <source>0</source>
+            <target>1</target>
+            <values/>
+        </edge>
+        <edge>
+            <source>0</source>
+            <target>2</target>
+            <values/>
+        </edge>
+        <edge>
+            <source>0</source>
+            <target>3</target>
+            <values/>
+        </edge>
+    </edges>
+    <upperLayers/>
+</harm>
