@@ -43,11 +43,11 @@ def read_json(json_str):
 
 
 def read_json_vulnerability(json_vulnerability):
-    if json_vulnerability['type'] is 'sibling':
+    if json_vulnerability['type'] == 'sibling':
         return {
             'id': json_vulnerability['id'],
             'name': json_vulnerability['name'],
-            'type': json_vulnerability['type'],
+            'type': 'vulnerability',
             'values': {
                 'poe': json_vulnerability['value']
             }
@@ -118,7 +118,7 @@ def convert_node_to_xml(node):
 
     # <vulnerabilities>
     xml_vulnerabilities = eTree.Element('vulnerabilities')
-    if node['name'] is 'Attacker':
+    if node['name'] != 'Attacker' and len(node['vulnerabilities']) > 0:
         root_vulnerability = node['vulnerabilities'][0]
         xml_vulnerabilities.append(parse_vulnerability_to_xml(root_vulnerability))
     xml_node.append(xml_vulnerabilities)
@@ -150,12 +150,12 @@ def convert_edge_to_xml(edge):
 
 
 def parse_vulnerability_to_xml(vulnerability):
-    if vulnerability['type'] is 'vulnerability':
+    if vulnerability['type'] in ['vulnerability', 'sibling']:
         # <vulnerability name id>
-        xml_vulnerability = eTree.Element(
-            vulnerability.type, attrib={
-                'id': vulnerability.id,
-                'name': vulnerability.name
+        xml_vulnerability = eTree.Element('vulnerability',
+            attrib={
+                'id': vulnerability['id'],
+                'name': vulnerability['name']
             })
         # <values>
         xml_values = eTree.Element('values')
@@ -178,6 +178,7 @@ def parse_vulnerability_to_xml(vulnerability):
 
 def json_to_xml(json_str):
     harm = read_json(json_str)
+    print(harm)
     return parse_xml(harm)
 
 
