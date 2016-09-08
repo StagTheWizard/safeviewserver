@@ -55,7 +55,7 @@ function radius(node) {
         return 12;
     }
     if (node.type == "host") {
-        return 5 + 5 * node.value;
+        return 5 + 5 * node.impact;
     } else {
         return 5;
     }
@@ -83,7 +83,7 @@ function colour(node) {
  * @return {string}
  */
 function title(node) {
-    return node.name + "\n" + "Breach Probability: " + Math.round(node.value * 100) + "%";
+    return node.name + "\n" + "Breach Probability: " + Math.round(node.impact * 100) + "%";
 }
 
 
@@ -94,7 +94,7 @@ function title(node) {
 function text(node) {
     if (node.name == "Attacker") {
         return node.name;
-    } else if (node.value > 0.5) {
+    } else if (node.impact > 0.5) {
         return node.name;
     }
 }
@@ -136,7 +136,7 @@ function getAncestors(node) {
 function mapToPalette(node, fn) {
     if (fn == null) {
         fn = function (n) {
-            return n.value;
+            return n.impact;
         };
     }
     // Then..
@@ -196,7 +196,7 @@ function renderDefault(d3$node, node, i) {
             tooltip.transition()
                 .duration(200)
                 .style("opacity", 0.9);
-            tooltip.html(node.name + "<br>" + node.value)
+            tooltip.html(node.name + "<br>" + node.impact)
                 .style("left", (d3.event.pageX) + "px")
                 .style("top", (d3.event.pageY - 28) + "px")
         })
@@ -232,7 +232,7 @@ function renderSunburst(d3$node, node, i) {
         tooltip.transition()
             .duration(200)
             .style("opacity", 0.9);
-        tooltip.html(tree_node.name + "<br>" + tree_node.value)
+        tooltip.html(tree_node.name + "<br>" + tree_node.impact)
             .style("left", (d3.event.pageX) + "px")
             .style("top", (d3.event.pageY - 28) + "px");
 
@@ -262,7 +262,7 @@ function renderSunburst(d3$node, node, i) {
         .size([2 * Math.PI, r * r])
         .value(function (tree_node) {
             //if (tree_node === node) return node.poe;
-            return tree_node.value;
+            return tree_node.poe;
         });
 
     var arc = d3.svg.arc()
@@ -289,7 +289,7 @@ function renderSunburst(d3$node, node, i) {
             .style("stroke", "#fff")
             .style("fill", function (tree_node) {
                 if (tree_node.type == "host" || tree_node.type == "sibling") {
-                    return mapToPalette(tree_node);
+                    return mapToPalette(tree_node, function (v) { return v.poe; });
                 } else { // tree_node.type == "and" | "or"
                     return "#777";
                 }
@@ -403,7 +403,7 @@ function HarmGraph(d3$svg, width, height) {
 
     this.on_dblclick = function (node, i) {
         console.log("Event[dblclick] on node " + node.id);
-        console.log(node.value);
+        console.log(node.impact);
         // Expand the node.
         node.expanded = node.expanded ? false : true;
 
@@ -501,17 +501,65 @@ function HarmGraph(d3$svg, width, height) {
     };
 
 
-    this.addEntireHarm = function (harm) {
+    this.addNodes = function (nodes) {
         var i_node, node;
-        for (i_node = 0; i_node < harm.nodes.length; i_node++) {
-            node = harm.nodes[i_node];
+        for (i_node = 0; i_node < nodes.length; i_node++) {
+            node = nodes[i_node];
             this.addNode(node);
         }
+    }
+
+    this.addLinks = function (links) {
         var i_link, link;
-        for (i_link = 0; i_link < harm.links.length; i_link++) {
-            link = harm.links[i_link];
+        for (i_link = 0; i_link < links.length; i_link++) {
+            link = links[i_link];
             this.addLink(link);
         }
+    };
+
+    this.addEntireJsonHarm = function (harm) {
+        this.addNodes(harm.nodes);
+        this.addLinks(harm.links);
+    };
+
+
+    this.addEntireHarm = function ($harm) {
+        var j_nodes = [], j_links = [], upperLayers;
+
+        var $nodes = $harm.find('nodes');
+        $nodes.find('node').each(function () {
+            var $node = $(this);
+            // parse node information
+            var j_node = {
+                id: $node.attr('id'),
+                name: $node.attr('name')
+            };
+            // parse metric values
+            var $values = $node.find('values');
+            j_node.impact = parseFloat($values.find('impact').text());
+            j_node.vulnerabilities = parse_$vulnerability($node.find('vulnerabilities'));
+            j_nodes.push(j_node);
+        });
+
+        var $edges = $harm.find('edge');
+        $edges.each(function () {
+            var $link = $(this);
+            // parse link information
+            var j_link = {
+                source: parseInt($link.find('source').text()),
+                target: parseInt($link.find('target').text())
+            };
+            // parse metric values (when existing)
+            var $values = $link.find('values');
+            j_links.push(j_link);
+        });
+
+        console.log(nodes);
+        console.log(links);
+        console.log(j_nodes);
+        console.log(j_links);
+        this.addNodes(j_nodes);
+        this.addLinks(j_links);
     };
 
 
@@ -521,4 +569,32 @@ function HarmGraph(d3$svg, width, height) {
             "links": links
         }
     };
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Harm graph utility functions
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+
+function parse_$vulnerability($vulnerability) {
+    var vulnerability = {
+        children: []
+    };
+    if ($vulnerability.is('vulnerability')) {
+        vulnerability.type = 'vulnerability';
+        vulnerability.id = $vulnerability.attr('id');
+        vulnerability.name = $vulnerability.attr('name');
+        var $values = $vulnerability.find('values');
+        vulnerability.poe = parseFloat($values.find('poe'));
+    } else {
+        if ($vulnerability.is('and')) {
+            vulnerability.type = 'and';
+        } else if ($vulnerability.is('or')) {
+            vulnerability.type = 'or';
+        }  // unreachable else
+        $vulnerability.children().each(function () {
+            vulnerability.children.push(parse_$vulnerability($(this)));
+        });
+    }
+    return vulnerability;
 }

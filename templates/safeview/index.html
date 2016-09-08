@@ -247,109 +247,113 @@
     }
 
 
+    /**
+     * Promise based XHR for requesting the existing systems on the server, in assumed XML format.
+     */
     function request_systems() {
-        // Check if the systems ids have been loaded already (not undefined).
-        if (sessionStorage["systems"] != null && JSON.parse(sessionStorage["systems"]) != null) {
+        // Check if the systems ids have been defined in session storage.
+        if (sessionStorage["systems"] != null && sessionStorage["systems"] != "") {
             return new Promise(function (resolve, reject) {
-                resolve(JSON.parse(sessionStorage["systems"]));
-            });
+                var $xml = string_to_$xml(sessionStorage["systems"]);
+                console.log("system list found locally");
+                resolve($xml);
+            })
         }
-        // Otherwise, create dictionary of system ids to nulls (unloaded data).
-        sessionStorage["systems"] = JSON.stringify({});
+        // Otherwise, create the xml storage
         return new Promise(function (resolve, reject) {
             $.ajax({
-                dataType: "json",
+                dataType: "xml",
                 url: "/safeview/systems/",
-                success: function (system_ids, text_status, xhr) {
-                    // Returns a list of system ids.
-                    // Store each system id in the systems dictionary in local storage, mapped to a null to signify the
-                    // system hasn't been requested from the server yet.
-                    var systems = JSON.parse(sessionStorage["systems"]);
-                    var system_id;
-                    for (var i = 0; i < system_ids.length; i++) {
-                        system_id = system_ids[i];
-                        systems[system_id] = null;
-                    }
-                    // Store the processed results.
-                    sessionStorage["systems"] = JSON.stringify(systems);
-                    // Resolve.
-                    resolve(systems);
+                success: function (xml, status, xhr) {
+                    var $systems = $(xml).find("systems");
+                    sessionStorage["systems"] = $xml_to_string($systems);
+                    console.log("system list retrieved from server");
+                    resolve($systems);
                 }
-            });
+            })
         });
     }
 
 
+    /**
+     * Promised wrapped XHR for requesting the ids of the harms in a particular system from the server,
+     * in an assumed XML format.
+     */
     function request_system(system_id) {
         return new Promise(function (resolve, reject) {
-            request_systems().then(function (systems) {
-                // Check if the system has already been loaded (not null).
-                if (systems[system_id] != null) {
-                    resolve(systems[system_id]);
-                }
-                // Otherwise, create dictionary of snapshot/harm ids to nulls (unloaded harms).
-                systems[system_id] = {};
-                $.ajax({
-                    dataType: "json",
-                    url: "/safeview/systems/" + system_id + "/",
-                    success: function (snapshot_ids, text_status, xhr) {
-                        // Returns a list of harm ids.
-                        // Store each harm id in this systems dictionary, each mapped to a null to signify that the harm
-                        // has not been requested from the server yet.
-                        var harm_id;
-                        for (var i = 0; i < snapshot_ids.length; i++) {
-                            harm_id = snapshot_ids[i];
-                            systems[system_id][harm_id] = null;
+            request_systems().then(function ($systems) {
+                var $system = $systems.find("system[ id = '" + system_id + "' ]");
+                if ($system.children().length != 0) {
+                    console.log("System " + system_id + " found locally");
+                    resolve($system);
+                } else {
+                    $.ajax({
+                        dataType: "xml",
+                        url: "/safeview/systems/" + system_id + "/",
+                        success: function (xml, status, xhr) {
+                            // Add each harm to the local system
+                            $(xml).find("harm").each(function () {
+                                $system.append(this);
+                            });
+                            // update session storage - really wish this line wasn't so ugly
+                            sessionStorage["systems"] = $xml_to_string($systems);
+                            console.log("System " + system_id + " retrieved from server")
+                            resolve($system);
                         }
-                        // Store the processed results.
-                        sessionStorage["systems"] = JSON.stringify(systems);
-                        // Resolve.
-                        resolve(systems[system_id]);
-                    }
-                });
+                    })
+                }
             });
         });
     }
 
 
+    /**
+     * A promise wrapped XHR for retrieving a full XML HARM from either session storage or server side.
+     */
     function request_harm(system_id, harm_id) {
         return new Promise(function (resolve, reject) {
-            request_system(system_id).then(function (system) {
-                var systems = JSON.parse(sessionStorage["systems"]);
-                // Check if the harm has already been loaded (not null).
-                if (systems[system_id][harm_id] != null) {
-                    resolve(systems[system_id][harm_id]);
+            request_system(system_id).then(function ($system) {
+                // Query for locally stored harm record
+                var $harm = $system.find("harm[ id = '" + harm_id + "' ]");
+                // ..check if it's content has been populated (<nodes><edges><upperLayers>)
+                if ($harm.children().length != 0) {
+                    console.log("Harm " + harm_id + " found locally");
+                    resolve($harm);
+                } else {
+                    $.ajax({
+                        dataType: "xml",
+                        url: "/safeview/harms/" + system_id + "/" + harm_id + "/",
+                        success: function (xml, status, xhr) {
+                            var $xml = $(xml);
+                            $harm.append($xml.find('nodes'));
+                            $harm.append($xml.find('edges'));
+                            $harm.append($xml.find('upperLayer'));
+                            // Update local storage
+                            var $systems = string_to_$xml(sessionStorage["systems"]);
+                            $systems.find("system[ id = '" + system_id + "' ]").replaceWith($system);
+                            sessionStorage["systems"] = $xml_to_string($systems);
+                            console.log("Harm " + harm_id + " retrieved from server");
+                            resolve($harm);
+                        }
+                    });
                 }
-                $.ajax({
-                    dataType: "json",
-                    url: "/safeview/harms/" + system_id + "/" + harm_id + "/",
-                    success: function (harm, text_status, xhr) {
-                        // Returns a harm (big ol' dictionary).
-                        // Update session storage.
-                        var systems = JSON.parse(sessionStorage["systems"]);
-                        systems[system_id][harm_id] = harm;
-                        sessionStorage["systems"] = JSON.stringify(systems);
-                        // Resolve.
-                        resolve(systems[system_id][harm_id]);
-                    }
-                });
             });
-        });
+        })
     }
 
 
     function populate_system_ids() {
         return new Promise(function (resolve, reject) {
-            request_systems().then(function (systems) {
-                var system_ids = keys(systems);
-                var system_id;
-                for (var i = 0; i < system_ids.length; i++) {
-                    system_id = system_ids[i];
-                    // Add the system id option to the system choice selector.
-                    $("#system-choice").append($("<option></option>").val(system_id).text(system_id));
-                    // Add the system id option to the upload to system selector.
-                    $("#upload-choice").append($("<option></option>").val(system_id).text(system_id));
-                }
+            request_systems().then(function ($systems) {
+                $systems.find('system').each(function () {
+                    var system_id = $(this).attr('id');
+                    // populate the system-choice
+                    var system_option = $("<option></option>").val(system_id).text(system_id);
+                    $("#system-choice").append(system_option);
+                    // populate the upload-choice
+                    var upload_option = $("<option></option>").val(system_id).text(system_id);
+                    $("#upload-choice").append(upload_option);
+                });
                 resolve();
             })
         });
@@ -358,18 +362,17 @@
 
     function populate_harm_ids(system_id) {
         return new Promise(function (resolve, reject) {
-            request_system(system_id).then(function (system) {
+            request_system(system_id).then(function ($system) {
+                // Drop the existing options
                 var $harm_choice = $("#harm-choice");
-                // Drop the existing options.
                 $harm_choice.find("option").remove();
 
-                var harm_ids = keys(system);
-                var harm_id;
-                for (var i = 0; i < harm_ids.length; i++) {
-                    // Add the harm id option to the harm choice selector.
-                    harm_id = harm_ids[i];
-                    $harm_choice.append($("<option></option>").val(harm_id).text(harm_id));
-                }
+                $system.find('harm').each(function () {
+                    var harm_id = $(this).attr('id');
+                    // populate the harm-choice
+                    var $harm_option = $("<option><option>").val(harm_id).text(harm_id);
+                    $harm_choice.append($harm_option);
+                });
                 resolve();
             });
         });
@@ -388,7 +391,7 @@
         return new Promise(function (resolve, reject) {
             var system_id = $("#system-choice").find("option:selected").text();
             var harm_id = $("#harm-choice").find("option:selected").text();
-            request_harm(system_id, harm_id).then(function (harm) {
+            request_harm(system_id, harm_id).then(function ($harm) {
                 // Remove he old harm.
                 $("#harm-upper").find("svg").remove();
 
@@ -399,7 +402,7 @@
 
                 //harm_upper(harm, upper_svg, upper_width, upper_height, -300, on_node_clicked);
                 harm_graph = new HarmGraph(d3$upper_svg, upper_width, upper_height);
-                harm_graph.addEntireHarm(harm);
+                harm_graph.addEntireHarm($harm);
                 harm_graph.initialise();
                 //harm_graph.addEntireHarm(harm);
                 console.log(harm_graph);
@@ -426,25 +429,6 @@
     }
 
 
-    /**
-     * @deprecated
-     * @param node
-     */
-    function on_node_clicked(node) {
-        // wtf is this ..
-        //$("#harm-lower").dialog();
-        // .. and wtf is this?
-        //$("#harm-lower").css('z-index', 9999);
-
-        // Drop old lower.
-        var lower_harm_container = $("#harm-lower");
-        lower_harm_container.remove("svg");
-        var lower_svg = lower_harm_container.append(
-                $("<svg></svg>").attr("height", lower_height).attr("width", lower_width));
-        harm_lower(node, node, lower_svg, lower_height, lower_width);
-    }
-
-
     // Initialise the system selector.
     populate_system_ids().then(function () {
         // ... and then the harm selector.
@@ -453,6 +437,16 @@
             populate_harm_ids(system_id).then(on_harm_selected);
         }
     });
+
+
+    function string_to_$xml(string) {
+        return $((new DOMParser()).parseFromString(string, 'text/xml'));
+    }
+
+
+    function $xml_to_string($xml) {
+        return (new XMLSerializer()).serializeToString($xml[0]);
+    }
 
 </script>
 </body>

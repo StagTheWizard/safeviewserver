@@ -129,10 +129,11 @@ def get_system(system_id):
 def get_harm(system_id, harm_id):
     # NOTE: This is entirely optimistic - ssh, no tears.
     # Create the system path.
+    etree.register_namespace('', uri="http://localhost:8000/safeview/harm")
     system_path = "./data/{0}/".format(system_id)
     # Get the path of all snapshots within the systems.
     for snapshot_filename in os.listdir(system_path):
         if snapshot_filename.strip(".xml") == harm_id:
             snapshot_path = system_path + "/" + snapshot_filename
-            return etree.parse(open(snapshot_path))
+            return etree.parse(open(snapshot_path)).getroot()
             # ...much optimism is needed.

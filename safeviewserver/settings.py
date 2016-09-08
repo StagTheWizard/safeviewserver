@@ -35,6 +35,8 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'rest_framework',  # necessary to render restful xml responses without it being smashed into an html body
+    'rest_framework_xml',
     'safeviewservice',
 ]
 
@@ -117,3 +119,16 @@ USE_TZ = True
 STATIC_ROOT = ''
 
 STATIC_URL = '/static/'
+
+# Resftul API configuration
+REST_FRAMEWORK = {
+    # Use Django's standard `django.contrib.auth` permissions,
+    # or allow read-only access for unauthenticated users.
+    # 'DEFAULT_PARSER_CLASSES': (
+    #     'rest_framework_xml.parsers.XMLParser',
+    # ),
+    # 'DEFAULT_RENDERER_CLASSES': (
+    #     'rest_framework_xml.renderers.XMLRenderer',
+    #     'rest_framework.renderers.BrowsableAPIRenderer'
+    # )
+}
