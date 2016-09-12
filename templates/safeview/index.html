@@ -369,8 +369,9 @@
 
                 $system.find('harm').each(function () {
                     var harm_id = $(this).attr('id');
+                    console.log(harm_id);
                     // populate the harm-choice
-                    var $harm_option = $("<option><option>").val(harm_id).text(harm_id);
+                    var $harm_option = $("<option></option>").val(harm_id).text(harm_id);
                     $harm_choice.append($harm_option);
                 });
                 resolve();

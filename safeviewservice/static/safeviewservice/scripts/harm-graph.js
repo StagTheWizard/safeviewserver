@@ -140,13 +140,13 @@ function mapToPalette(node, fn) {
         };
     }
     // Then..
-    if (fn(node) < 0.15) {
+    if (fn(node) <= 0.20) {
         return Palette[0];
-    } else if (0.15 < fn(node) < 0.4) {
+    } else if (0.20 <= fn(node) < 0.4) {
         return Palette[1];
-    } else if (0.4 < fn(node) < 0.6) {
+    } else if (0.4 <= fn(node) < 0.6) {
         return Palette[2];
-    } else if (0.6 < fn(node) < 0.85) {
+    } else if (0.6 <= fn(node) < 0.80) {
         return Palette[3];
     } else { // 0.85 < fn(node)
         return Palette[4];
@@ -171,6 +171,7 @@ function mapToPalette(node, fn) {
 function renderNode(node, i) {
     var d3$node = d3.select(this);
 
+    console.log(d3$node);
     if (node.expanded) {
         renderSunburst(d3$node, node, i);
     } else {
@@ -221,7 +222,7 @@ function renderDefault(d3$node, node, i) {
  * @param i         The node index
  */
 function renderSunburst(d3$node, node, i) {
-    console.log("Rendering node " + node.id + "[expanded=" + node.expanded + "]");
+    // console.log("Rendering node " + node.id + "[expanded=" + node.expanded + "]");
 
     var height = 60,
         width = 60,
@@ -232,7 +233,7 @@ function renderSunburst(d3$node, node, i) {
         tooltip.transition()
             .duration(200)
             .style("opacity", 0.9);
-        tooltip.html(tree_node.name + "<br>" + tree_node.impact)
+        tooltip.html(tree_node.name + "<br>" + tree_node.poe)
             .style("left", (d3.event.pageX) + "px")
             .style("top", (d3.event.pageY - 28) + "px");
 
@@ -279,6 +280,7 @@ function renderSunburst(d3$node, node, i) {
             return Math.sqrt(data.y + data.dy);
         });
 
+    console.log(node);
     var d3$path = d3$node.datum(node).selectAll("path")
         .data(partition.nodes)
         .enter().append("path")
@@ -288,7 +290,7 @@ function renderSunburst(d3$node, node, i) {
             .attr("d", arc)
             .style("stroke", "#fff")
             .style("fill", function (tree_node) {
-                if (tree_node.type == "host" || tree_node.type == "sibling") {
+                if (tree_node.type == "host" || tree_node.type == "vulnerability") {
                     return mapToPalette(tree_node, function (v) { return v.poe; });
                 } else { // tree_node.type == "and" | "or"
                     return "#777";
@@ -304,21 +306,21 @@ function renderSunburst(d3$node, node, i) {
         .attr("dy", ".35em")
         .text(text);
 
-    //d3$path.data(
+    // d3$path.data(
     //    partition.value(function (tree_node) {
-    //        return tree_node.value;
-    //    }).nodes);
-        //.transition()
-        //.duration(1500)
-        //.attrTween("d", function (a) {
-        //    var i = d3.interpolate({x: a.x0, dx: a.dx0}, a);
-        //    return function (t) {
-        //        var b = i(t);
-        //        a.x0 = b.x;
-        //        a.dx0 = b.x0;
-        //        return arc(b);
-        //    };
-        //});
+    //        return tree_node.poe;
+    //    }).nodes)
+    //     .transition()
+    //     .duration(1500)
+    //     .attrTween("d", function (a) {
+    //        var i = d3.interpolate({x: a.x0, dx: a.dx0}, a);
+    //        return function (t) {
+    //            var b = i(t);
+    //            a.x0 = b.x;
+    //            a.dx0 = b.x0;
+    //            return arc(b);
+    //        };
+    //     });
 }
 
 
@@ -403,13 +405,14 @@ function HarmGraph(d3$svg, width, height) {
 
     this.on_dblclick = function (node, i) {
         console.log("Event[dblclick] on node " + node.id);
-        console.log(node.impact);
+        console.log(node);
         // Expand the node.
         node.expanded = node.expanded ? false : true;
 
         var d3$node = d3.select(this);
         d3$node.selectAll("*").remove();
 
+        // renderNode(node, i);
         if (node.expanded) {
             renderSunburst(d3$node, node, i);
         } else {
@@ -487,11 +490,19 @@ function HarmGraph(d3$svg, width, height) {
         // Nodes title.
         d3$nodes.append("title", title);
 
+        // Calm down the start of the force.
+        var ticker = 0;
+        while ((force.alpha() > 1e-2) && (ticker < 50)) {
+            force.tick();
+            ticker++;
+        }
     };
 
 
     this.addNode = function (node) {
         node.expanded = false;
+        // node.x = width / 2;
+        // node.y = height / 2;
         nodes.push(node);
     };
 
@@ -507,7 +518,8 @@ function HarmGraph(d3$svg, width, height) {
             node = nodes[i_node];
             this.addNode(node);
         }
-    }
+    };
+
 
     this.addLinks = function (links) {
         var i_link, link;
@@ -516,6 +528,7 @@ function HarmGraph(d3$svg, width, height) {
             this.addLink(link);
         }
     };
+
 
     this.addEntireJsonHarm = function (harm) {
         this.addNodes(harm.nodes);
@@ -537,7 +550,7 @@ function HarmGraph(d3$svg, width, height) {
             // parse metric values
             var $values = $node.find('values');
             j_node.impact = parseFloat($values.find('impact').text());
-            j_node.vulnerabilities = parse_$vulnerability($node.find('vulnerabilities'));
+            j_node.children = [parse_$vulnerability($node.find('vulnerabilities').children().first())];
             j_nodes.push(j_node);
         });
 
@@ -585,16 +598,22 @@ function parse_$vulnerability($vulnerability) {
         vulnerability.id = $vulnerability.attr('id');
         vulnerability.name = $vulnerability.attr('name');
         var $values = $vulnerability.find('values');
-        vulnerability.poe = parseFloat($values.find('poe'));
+        vulnerability.poe = parseFloat($values.find('poe').text());
     } else {
+        vulnerability.poe = 0;
         if ($vulnerability.is('and')) {
+            vulnerability.name = 'and';
             vulnerability.type = 'and';
         } else if ($vulnerability.is('or')) {
+            vulnerability.name = 'or';
             vulnerability.type = 'or';
         }  // unreachable else
         $vulnerability.children().each(function () {
-            vulnerability.children.push(parse_$vulnerability($(this)));
+            var child = parse_$vulnerability($(this));
+            vulnerability.poe += child.poe;
+            vulnerability.children.push(child);
         });
+
     }
     return vulnerability;
 }
