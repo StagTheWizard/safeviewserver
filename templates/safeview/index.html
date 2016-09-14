@@ -327,7 +327,7 @@
                             var $xml = $(xml);
                             $harm.append($xml.find('nodes'));
                             $harm.append($xml.find('edges'));
-                            $harm.append($xml.find('upperLayer'));
+                            $harm.append($xml.find('upperLayers'));
                             // Update local storage
                             var $systems = string_to_$xml(sessionStorage["systems"]);
                             $systems.find("system[ id = '" + system_id + "' ]").replaceWith($system);
