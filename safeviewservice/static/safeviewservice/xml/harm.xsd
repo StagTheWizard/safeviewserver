@@ -60,6 +60,14 @@
           </xs:complexType>
         </xs:element>
 
+        <xs:element name="upperLayers">
+          <xs:complexType>
+            <xs:sequence>
+              <xs:element ref="layer"/>
+            </xs:sequence>
+          </xs:complexType>
+        </xs:element>
+
       </xs:sequence>
     </xs:complexType>
   </xs:element>
@@ -160,23 +168,24 @@
   </xs:element>
 
   <!-- hypergraph grouping edges definition (n-HARM) -->
-  <xs:element name="upperLayers">
-    <xs:complexType>
-      <xs:sequence>
-
-      </xs:sequence>
-    </xs:complexType>
-  </xs:element>
   <xs:element name="layer">
     <xs:complexType>
       <xs:sequence>
-
+        <xs:element ref="group"/>
       </xs:sequence>
     </xs:complexType>
   </xs:element>
+
   <xs:element name="group">
     <xs:complexType>
       <xs:sequence>
+
+        <xs:element name="element">
+          <xs:simpleType>
+            <xs:restriction base="xs:integer">
+            </xs:restriction>
+          </xs:simpleType>
+        </xs:element>
 
       </xs:sequence>
     </xs:complexType>
