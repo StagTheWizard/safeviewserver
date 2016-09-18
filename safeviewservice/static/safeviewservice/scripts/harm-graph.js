@@ -1049,18 +1049,30 @@ function HarmGraph(d3$svg, width, height) {
 
 
     this.expandHost = function (host, index) {
+        var pos = {x: host.x, y: host.y};
+        // console.log("Pos, ", position, host.px, host.py);
         var d3$node = d3.select(d3$nodes[0][nodes.indexOf(host)]);
         d3$node.selectAll("*").remove();
         host.expanded = true;
         renderHostSunburst(d3$node, host, index, this.collapseHost.bind(this));
+        host.x = pos.x;
+        host.y = pos.y;
+        host.px = pos.x;
+        host.py = pos.y;
     };
 
 
     this.collapseHost = function (host, index) {
+        var pos = {x: host.x, y: host.y};
+        // console.log("Pos, ", position, host.px, host.py);
         var d3$node = d3.select(d3$nodes[0][nodes.indexOf(host)]);
         d3$node.selectAll("*").remove();
         host.expanded = false;
         renderHost(d3$node, host, index, this.expandHost.bind(this));
+        host.x = pos.x;
+        host.y = pos.y;
+        host.px = pos.x;
+        host.py = pos.y;
     };
 
 
