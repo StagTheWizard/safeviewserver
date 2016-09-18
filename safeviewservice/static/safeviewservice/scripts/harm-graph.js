@@ -11,7 +11,7 @@ var Palette = {
     // LOW: 'SteelBlue'
     HIGH: 'Red',
     MEDIUM: 'Orange',
-    LOW: 'Blue'
+    LOW: 'Green'
 };
 
 
@@ -353,7 +353,7 @@ function getNodesLinks(node, links) {
  * @param i         The index.
  */
 function renderHost(d3$node, host, index, onDoubleClick) {
-    console.log("Rendering host '" + host.id + "'");
+    console.log("Rendering host '" + host.id + "', ", index, host);
 
     var tooltip = d3.select(".tooltip");
     d3$node.append("circle")
@@ -377,11 +377,13 @@ function renderHost(d3$node, host, index, onDoubleClick) {
         .attr("dx", hostRadius)
         .attr("dy", ".35em")
         .text(hostText);
+
+    d3$node.on("dblclick", onDoubleClick);
 }
 
 
 function renderGroup(d3$node, group, index, onDoubleClick) {
-    console.log("Rendering group '" + group.id + "'");
+    console.log("Rendering group '" + group.id + "', ", index, group);
 
     var tooltip = d3.select(".tooltip");
     d3$node.append("circle")
@@ -404,8 +406,8 @@ function renderGroup(d3$node, group, index, onDoubleClick) {
  * @param host      The bound node data
  * @param i         The node index
  */
-function renderHostSunburst(d3$node, host, i) {
-    console.log("Rendering expanded host '" + host.id + "'");
+function renderHostSunburst(d3$node, host, index, onDoubleClick) {
+    console.log("Rendering expanded host '" + host.id + "', ", index, host);
     // console.log("Rendering node " + node.id + "[expanded=" + node.expanded + "]");
 
     var height = 60,
@@ -495,6 +497,8 @@ function renderHostSunburst(d3$node, host, i) {
         .attr("dx", hostRadius)
         .attr("dy", ".35em")
         .text(hostText);
+
+    d3$node.on("dblclick", onDoubleClick);
 }
 
 
@@ -503,6 +507,13 @@ function renderHostSunburst(d3$node, host, i) {
  * THE HARM GRAPH CLASS
  */
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+// const Direction = {
+//     UP: 0,
+//     DOWN: 1,
+//     LEFT: 2,
+//     RIGHT: 3
+// };
 
 const Element = {
     HOST: 0,
@@ -589,9 +600,10 @@ function HarmGraph(d3$svg, width, height) {
     };
 
 
-    this.onDragStart = function (data) {
-        d3.select(this).classed("fixed", data.fixed = true);
-    };
+    // this.onDragStart = function (data) {
+    //     d3.select(this).classed("fixed", data.fixed = true);
+        // d3.event.stopPropagation();
+    // };
 
 
     this.onDoubleClick = function (node, i) {
@@ -617,6 +629,13 @@ function HarmGraph(d3$svg, width, height) {
     };
 
 
+    // this.pan = function (direction) {
+    //     var speed = 200;
+    //     var translateCoords = d3.transform(view.attr("transform"));
+    //     if (direction == Direction.LEFT || direction == )
+    // };
+
+
     /**
      * Method of HarmGraph to call to re-create the graph and selector elements
      * from the (assumed to be modified) nodes and links list.
@@ -633,6 +652,7 @@ function HarmGraph(d3$svg, width, height) {
 
         // Define the zoom and drag behaviour.
         var zoom = d3.behavior.zoom()
+            .scaleExtent([0.1, 3])
             .on("zoom", this.onZoom);
         d3$svg
             .attr("pointer-events", "all")
@@ -642,6 +662,12 @@ function HarmGraph(d3$svg, width, height) {
             .on("dblclick.zoom", null);
 
         view = d3$svg.append("g");
+
+        // var dragListenenr = d3.behavior.drag()
+        //     .on("drag", function(node) {
+        //        var deltaCoords = d3.mouse(d3$svg,)
+        //     });
+
 
         // Define the div for the tooltip.
         var div = d3.select("body").append("div")
@@ -660,6 +686,8 @@ function HarmGraph(d3$svg, width, height) {
         d3$links = view.selectAll(".link");
         d3$nodes = view.selectAll(".node");
         d3$hulls = view.selectAll(".hull");
+
+        // d3$nodes.on("dragstart", this.onDragStart);
 
         this.update();
 
@@ -710,8 +738,10 @@ function HarmGraph(d3$svg, width, height) {
                 var d3$node = d3.select(d3$nodes[0][index]);
                 switch (node.type) {
                     case Element.HOST:
-                        if (node.expanded) renderHostSunburst(d3$node, node, index, null);
-                        else renderHost(d3$node, node, index, null);
+                        if (node.expanded)
+                            renderHostSunburst(d3$node, node, index, this.collapseHost.bind(this));
+                        else
+                            renderHost(d3$node, node, index, this.expandHost.bind(this));
                         break;
                     case Element.GROUP:
                         renderGroup(d3$node, node, index, this.expandGroup.bind(this));
@@ -1015,6 +1045,22 @@ function HarmGraph(d3$svg, width, height) {
 
     this.isInternalLink = function (link) {
         return link.source.group == link.target.group;
+    };
+
+
+    this.expandHost = function (host, index) {
+        var d3$node = d3.select(d3$nodes[0][nodes.indexOf(host)]);
+        d3$node.selectAll("*").remove();
+        host.expanded = true;
+        renderHostSunburst(d3$node, host, index, this.collapseHost.bind(this));
+    };
+
+
+    this.collapseHost = function (host, index) {
+        var d3$node = d3.select(d3$nodes[0][nodes.indexOf(host)]);
+        d3$node.selectAll("*").remove();
+        host.expanded = false;
+        renderHost(d3$node, host, index, this.expandHost.bind(this));
     };
 
 
