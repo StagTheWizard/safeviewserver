@@ -1034,7 +1034,7 @@ function HarmGraph(d3$svg, width, height) {
         // Store the position prior expansion
         var pos = {x: host.x, y: host.y};
         // console.log("Pos, ", position, host.px, host.py);
-        var d3$node = d3.select(d3$nodes[0][nodes.indexOf(host)]);
+        var d3$node = d3.select(d3$nodes[0][render.nodes.indexOf(host)]);
         d3$node.selectAll("*").remove();
         host.expanded = true;
         renderHostSunburst(d3$node, host, index, this.collapseHost.bind(this));
@@ -1050,7 +1050,7 @@ function HarmGraph(d3$svg, width, height) {
         // Store the position prior collapse
         var pos = {x: host.x, y: host.y};
         // console.log("Pos, ", position, host.px, host.py);
-        var d3$node = d3.select(d3$nodes[0][nodes.indexOf(host)]);
+        var d3$node = d3.select(d3$nodes[0][render.nodes.indexOf(host)]);
         d3$node.selectAll("*").remove();
         host.expanded = false;
         renderHost(d3$node, host, index, this.expandHost.bind(this));
