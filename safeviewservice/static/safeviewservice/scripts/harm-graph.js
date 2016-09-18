@@ -3,7 +3,32 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 
-Palette = ["#30638E", "#7EA8BE", "#FBD1A2", "#FC9F5B", "#FF5D73"];
+// Palette = ["#30638E", "#7EA8BE", "#FBD1A2", "#FC9F5B", "#FF5D73"];
+
+
+var Palette = {
+    // HIGH: 'Crimson',
+    // LOW: 'SteelBlue'
+    HIGH: 'Red',
+    MEDIUM: 'Orange',
+    LOW: 'Blue'
+};
+
+
+function paletteInterpolation(n) {
+    const lowToMedInterpolation = d3.interpolateRgb(Palette.LOW, Palette.MEDIUM);
+    const medToHighInterpolation = d3.interpolateRgb(Palette.MEDIUM, Palette.HIGH);
+    if (n < 0) n = 0;
+    else if (n > 1) n = 1;
+
+    if (n <= 0.5) {
+        // 0-0.5 => 0-1.0
+        return lowToMedInterpolation(2 * n)
+    } else {
+        // 0.5-1.0 => 0-1.0
+        return medToHighInterpolation(2 * (n - 0.5));
+    }
+}
 
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -16,27 +41,28 @@ Palette = ["#30638E", "#7EA8BE", "#FBD1A2", "#FC9F5B", "#FF5D73"];
 
 
 /**
- * Collision function that takes a node, checks if it collides with others and attempts to resolve
+ * Collision function that takes an element, checks if it collides with others and attempts to resolve
  * any collisions.
- * @param node          Node to check for collision.
+ * @param elem          Node to check for collision.
  * @returns {Function}  Collision function.
  */
-function collision(node) {
-    var r = node.expanded ? 120 : radius(node) * 2,
-        nx1 = node.x - r,
-        nx2 = node.x + r,
-        ny1 = node.y - r,
-        ny2 = node.y + r;
+function collision(elem) {
+    var r = (elem.type == Element.HOST && elem.expanded) ?
+            120 : hostRadius(elem) * 2,
+        nx1 = elem.x - r,
+        nx2 = elem.x + r,
+        ny1 = elem.y - r,
+        ny2 = elem.y + r;
     return function (quad, x1, y1, x2, y2) {
-        if (quad.point && (quad.point !== node)) {
-            var x = node.x - quad.point.x,
-                y = node.y - quad.point.y,
+        if (quad.point && (quad.point !== elem)) {
+            var x = elem.x - quad.point.x,
+                y = elem.y - quad.point.y,
                 l = Math.sqrt(x * x + y * y),
-                r = node.radius + quad.point.radius;
+                r = elem.radius + quad.point.radius;
             if (l < r) {
                 l = (l - r) / l * .5;
-                node.x -= x *= l;
-                node.y -= y *= l;
+                elem.x -= x *= l;
+                elem.y -= y *= l;
                 quad.point.x += x;
                 quad.point.y += y;
             }
@@ -45,17 +71,35 @@ function collision(node) {
     };
 }
 
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+function radius(node) {
+    switch (node.type) {
+        case Element.HOST:
+            return hostRadius(node);
+            break;
+
+        case Element.GROUP:
+            return groupRadius(node);
+            break;
+
+        default:
+            break;
+    }
+}
+
 
 /**
- * Radius function, determines the radius of a node.
+ * Radius function for host elements.
+ * Determines the radius of a host as a function of it's impact.
  * @return {number}
  */
-function radius(node) {
-    if (node.name == "Attacker") {
+function hostRadius(host) {
+    if (host.name == "Attacker") {
         return 12;
     }
-    if (node.type == "host") {
-        return 5 + 5 * node.impact;
+    if (host.type == Element.HOST) {
+        return 5 + 5 * host.impact;
     } else {
         return 5;
     }
@@ -63,39 +107,111 @@ function radius(node) {
 
 
 /**
- * Colouring function, determines the colour of a node.
+ * Radius function for group elements.
+ * Determines the radius of a group as a function of it's size.
+ * @param group
+ * @returns {number}
+ */
+function groupRadius(group) {
+    return 10 + 3 * group.size;
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/**
+ * Link distancing function, determines the length of a link as the function of the host
+ * elements it represents.
+ * @param link
+ * @returns {number}
+ */
+function linkDistance(link, index) {
+    var source = link.source,
+        target = link.target;
+
+    var c = 10;  // element-gap constant
+
+    var distance;
+    if (source.group && target.group && source.group == target.group) {
+        distance = c;
+        // console.log("Internal link", link, distance);
+    } else {
+        distance = 0;
+        if (source.group) {
+            distance += 30 + c*source.group.size;
+        } else {
+            distance += 30;
+        }
+        if (target.group) {
+            distance += 30 + c*target.group.size;
+        } else {
+            distance += 30;
+        }
+        // console.log("External link", link, distance);
+    }
+    return distance;
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/**
+ * Colouring function for host elements.
+ * @param host
  * @return {string}
  */
-function colour(node) {
-    if (node.name == "Attacker") {
+function hostColour(host) {
+    if (host.name == "Attacker") {
         return "black";
         //} else if (node.value / 10 > 1.0 || node.value / 10 < 0) {
         //    return "lightblue";
     } else {
-        return mapToPalette(node);
+        return paletteInterpolation(host.impact);
     }
 }
 
 
 /**
- * Title function, titles the nodes - currently doing nothing I believe??
- * @deprecated
- * @return {string}
+ * Colouring function for group elements.
+ * @param group
+ * @returns {string|*|string}
  */
-function title(node) {
-    return node.name + "\n" + "Breach Probability: " + Math.round(node.impact * 100) + "%";
+function groupColour(group) {
+    return "LightSlateGrey";
 }
 
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
- * Text function, determines the name / text of the node that appears (related to a threshold).
+ *
  * @return {string}
  */
-function text(node) {
-    if (node.name == "Attacker") {
-        return node.name;
-    } else if (node.impact > 0.5) {
-        return node.name;
+function title(elem) {
+    switch (elem.type) {
+        case Element.HOST:
+            return elem.name + "\n" +
+                "Breach Probability: " + Math.round(elem.impact * 100) + "%";
+            break;
+
+        case Element.GROUP:
+            return "[TODO] group.name";
+            break;
+
+        default:
+            break;
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/**
+ * Text function, determines the text of the element that appears as a function of the name
+ * and a significance threshold.
+ * @return {string}
+ */
+function hostText(host) {
+    if (host.name == "Attacker") {
+        return host.name;
+    } else if (host.impact > 0.5) {
+        return host.name;
     }
 }
 
@@ -153,6 +269,74 @@ function mapToPalette(node, fn) {
     }
 }
 
+
+function inList(list, obj) {
+    var i, listObj;
+    for (i = 0; i < list.length; i++) {
+        listObj = list[i];
+        if (obj === listObj) {
+            return true;
+        }
+    }
+    return false;
+}
+
+
+function generateConvexHulls(nodes) {
+    // Dictionary of group to possible hull points (subnodes.xy +- offset)
+    var hullsPoints = {};
+    var offset = 15;
+
+    // Generate possible points for each hull.
+    var groupPointsMap;
+    var k, node;
+    for (k = 0; k < nodes.length; k++) {
+        node = nodes[k];
+
+        if (node.type == Element.HOST && node.group) {
+            groupPointsMap = hullsPoints[node.group.id] ||
+                (hullsPoints[node.group.id] = {
+                    group: node.group,
+                    points: []
+                });
+
+            groupPointsMap.points.push([node.x-offset, node.y-offset]);
+            groupPointsMap.points.push([node.x-offset, node.y+offset]);
+            groupPointsMap.points.push([node.x+offset, node.y+offset]);
+            groupPointsMap.points.push([node.x+offset, node.y-offset]);
+        } /*else if (node.type == Element.GROUP) {
+            continue;
+        } else {
+            continue;
+        }*/
+    }
+
+    var hulls = [];
+    var groupId;
+    for (groupId in hullsPoints) {
+        hulls.push({
+            group: hullsPoints[groupId].group,
+            path: d3.geom.hull(hullsPoints[groupId].points)})
+    }
+    return hulls;
+}
+
+
+function getNodesLinks(node, links) {
+    var nodesLinks = [];
+    var i, link;
+    for (i = 0; i < links.length; i++) {
+        link = links[i];
+
+        if (link.source == node || link.target == node) {
+            nodesLinks.push(link);
+        }
+    }
+
+    return nodesLinks;
+}
+
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /**
  * NODE RENDERING FUNCTIONS.
@@ -163,54 +347,53 @@ function mapToPalette(node, fn) {
 
 
 /**
- * Renders the node, by calling the appropriate more specific rendering function based on expansion
- * state (e.g. expanded = true, then render a sunburst).
- * @param node
- * @param i
- */
-function renderNode(node, i) {
-    var d3$node = d3.select(this);
-
-    console.log(d3$node);
-    if (node.expanded) {
-        renderSunburst(d3$node, node, i);
-    } else {
-        renderDefault(d3$node, node, i);
-    }
-}
-
-
-/**
  * Render the default representation of a node (a circle) and associate events (on mouse over etc).
  * @param d3$node   The node selection.
- * @param node      The node data itself.
+ * @param host      The node data itself.
  * @param i         The index.
  */
-function renderDefault(d3$node, node, i) {
-    console.log("Rendering node " + node.id + "[expanded=" + node.expanded + "]");
+function renderHost(d3$node, host, index, onDoubleClick) {
+    console.log("Rendering host '" + host.id + "'");
 
     var tooltip = d3.select(".tooltip");
     d3$node.append("circle")
-        .attr("r", radius)
-        .style("fill", colour)
-        .on("mouseover", function (node) {
+        .attr("r", hostRadius)
+        .style("fill", hostColour)
+        .on("mouseover", function (host) {
             tooltip.transition()
                 .duration(200)
                 .style("opacity", 0.9);
-            tooltip.html(node.name + "<br>" + node.impact)
+            tooltip.html(host.name + "<br>" + host.impact)
                 .style("left", (d3.event.pageX) + "px")
                 .style("top", (d3.event.pageY - 28) + "px")
         })
-        .on("mouseout", function (node) {
+        .on("mouseout", function (host) {
             tooltip.transition()
                 .duration(500)
                 .style("opacity", 0);
         });
 
     d3$node.append("text")
-        .attr("dx", radius)
+        .attr("dx", hostRadius)
         .attr("dy", ".35em")
-        .text(text);
+        .text(hostText);
+}
+
+
+function renderGroup(d3$node, group, index, onDoubleClick) {
+    console.log("Rendering group '" + group.id + "'");
+
+    var tooltip = d3.select(".tooltip");
+    d3$node.append("circle")
+        .attr("r", groupRadius)
+        .style("fill", groupColour);
+
+    d3$node.append("text")
+        .attr("dx", groupRadius)
+        .attr("dy", ".35em")
+        .text(group.size);
+
+    d3$node.on("dblclick", onDoubleClick)
 }
 
 
@@ -218,10 +401,11 @@ function renderDefault(d3$node, node, i) {
  * Takes a d3 node selection (group element) and renders within it a sunburst
  * based on the nodes vulnerability tree and relevant event handlers (e.g. on mouse over).
  * @param d3$node   D3 selection of node element (<g></g>)
- * @param node      The bound node data
+ * @param host      The bound node data
  * @param i         The node index
  */
-function renderSunburst(d3$node, node, i) {
+function renderHostSunburst(d3$node, host, i) {
+    console.log("Rendering expanded host '" + host.id + "'");
     // console.log("Rendering node " + node.id + "[expanded=" + node.expanded + "]");
 
     var height = 60,
@@ -233,9 +417,15 @@ function renderSunburst(d3$node, node, i) {
         tooltip.transition()
             .duration(200)
             .style("opacity", 0.9);
-        tooltip.html(tree_node.name + "<br>" + tree_node.poe)
-            .style("left", (d3.event.pageX) + "px")
-            .style("top", (d3.event.pageY - 28) + "px");
+        if (tree_node.poe === undefined) {
+            tooltip.html(tree_node.name)
+                .style("left", (d3.event.pageX) + "px")
+                .style("top", (d3.event.pageY - 28) + "px");
+        } else {
+            tooltip.html(tree_node.name + "<br>" + tree_node.poe)
+                .style("left", (d3.event.pageX) + "px")
+                .style("top", (d3.event.pageY - 28) + "px");
+        }
 
         var sequenceArray = getAncestors(tree_node);
         d3$node.selectAll("path")
@@ -243,13 +433,13 @@ function renderSunburst(d3$node, node, i) {
 
         d3$node.selectAll("path")
             .filter(function (tree_node) {
-                if (tree_node === node) return true;
+                if (tree_node === host) return true;
                 return (sequenceArray.indexOf(tree_node) >= 0);
             })
             .style("opacity", 1);
     };
 
-    var on_mouseout = function (node) {
+    var on_mouseout = function (host) {
         tooltip.transition()
             .duration(500)
             .style("opacity", 0);
@@ -280,47 +470,31 @@ function renderSunburst(d3$node, node, i) {
             return Math.sqrt(data.y + data.dy);
         });
 
-    console.log(node);
-    var d3$path = d3$node.datum(node).selectAll("path")
+    console.log(host);
+    var d3$path = d3$node.datum(host).selectAll("path")
         .data(partition.nodes)
         .enter().append("path")
-            .attr("display", function (tree_node) {
-                return tree_node.depth; // ? null : "none"; // hides the innermost ring
-            })
-            .attr("d", arc)
-            .style("stroke", "#fff")
-            .style("fill", function (tree_node) {
-                if (tree_node.type == "host" || tree_node.type == "vulnerability") {
-                    return mapToPalette(tree_node, function (v) { return v.poe; });
-                } else { // tree_node.type == "and" | "or"
-                    return "#777";
-                }
-            })
-            .style("fill-rule", "evenodd")
-            .each(stash)
+        .attr("display", function (tree_node) {
+            return tree_node.depth; // ? null : "none"; // hides the innermost ring
+        })
+        .attr("d", arc)
+        .style("stroke", "#fff")
+        .style("fill", function (tree_node) {
+            if (tree_node.type == "host" || tree_node.type == "vulnerability") {
+                return paletteInterpolation(tree_node.poe);
+            } else { // tree_node.type == "and" | "or"
+                return "#777";
+            }
+        })
+        .style("fill-rule", "evenodd")
+        .each(stash)
         .on("mouseover", on_mouseover)
         .on("mouseout", on_mouseout);
 
     d3$node.append("text")
-        .attr("dx", radius)
+        .attr("dx", hostRadius)
         .attr("dy", ".35em")
-        .text(text);
-
-    // d3$path.data(
-    //    partition.value(function (tree_node) {
-    //        return tree_node.poe;
-    //    }).nodes)
-    //     .transition()
-    //     .duration(1500)
-    //     .attrTween("d", function (a) {
-    //        var i = d3.interpolate({x: a.x0, dx: a.dx0}, a);
-    //        return function (t) {
-    //            var b = i(t);
-    //            a.x0 = b.x;
-    //            a.dx0 = b.x0;
-    //            return arc(b);
-    //        };
-    //     });
+        .text(hostText);
 }
 
 
@@ -330,6 +504,10 @@ function renderSunburst(d3$node, node, i) {
  */
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+const Element = {
+    HOST: 0,
+    GROUP: 1
+};
 
 /**
  * HarmGraph class.
@@ -347,28 +525,32 @@ function renderSunburst(d3$node, node, i) {
  * @constructor
  */
 function HarmGraph(d3$svg, width, height) {
-
     // The force layout object.
     var force;
     // The view group inside the SVG - on which the scaling and translations are performed (zoom and drag).
     var view;
 
+    // Arrays of the data elements.
     var nodes = [];
     var links = [];
+    var layers = [];
+    // The render element (render filtered data elements).
+    var render = {};
 
     // Note: variables / parameters prefixed with d3$ are d3 selectors.
     var d3$nodes;
     var d3$links;
+    var d3$hulls;
 
 
-    this.on_tick = function () {
+    this.onTick = function () {
         var q = d3.geom.quadtree(nodes),
             i = 0,
             n = nodes.length;
 
         while (++i < n) q.visit(collision(nodes[i]));
 
-        // Per tick link updates.
+        // Link update
         d3$links
             .attr("x1", function (link) {
                 return link.source.x;
@@ -382,7 +564,8 @@ function HarmGraph(d3$svg, width, height) {
             .attr("y2", function (link) {
                 return link.target.y;
             });
-        // Per tick node updates.
+
+        // Node update
         d3$nodes
             .attr("cx", function (node) {
                 var r = radius(node);
@@ -395,15 +578,23 @@ function HarmGraph(d3$svg, width, height) {
             .attr("transform", function (node) {
                 return "translate(" + node.x + "," + node.y + ")";
             });
+
+        // Hull update
+        var curve = d3.svg.line()
+            .interpolate("cardinal-closed")
+            .tension(0.85);
+
+        d3$hulls.data(generateConvexHulls(render.nodes));
+        d3$hulls.attr("d", function (hull) { return curve(hull.path); });
     };
 
 
-    this.on_drag_start = function (data) {
+    this.onDragStart = function (data) {
         d3.select(this).classed("fixed", data.fixed = true);
     };
 
 
-    this.on_dblclick = function (node, i) {
+    this.onDoubleClick = function (node, i) {
         console.log("Event[dblclick] on node " + node.id);
         console.log(node);
         // Expand the node.
@@ -414,14 +605,14 @@ function HarmGraph(d3$svg, width, height) {
 
         // renderNode(node, i);
         if (node.expanded) {
-            renderSunburst(d3$node, node, i);
+            renderHostSunburst(d3$node, node, i);
         } else {
-            renderDefault(d3$node, node, i);
+            renderHost(d3$node, node, i);
         }
     };
 
 
-    this.on_zoom = function () {
+    this.onZoom = function () {
         view.attr("transform", "translate(" + d3.event.translate + ")scale(" + d3.event.scale + ")");
     };
 
@@ -431,20 +622,18 @@ function HarmGraph(d3$svg, width, height) {
      * from the (assumed to be modified) nodes and links list.
      */
     this.initialise = function () {
-        var link_distance = Math.max(width / nodes.length, 60);
-        var k = Math.sqrt(nodes.length / (width * height));
-        var charge = -10 / k;
-        var gravity = 100 * k;
+        render = this.generateRender();
 
         force = d3.layout.force()
             .size([width, height])
-            .charge(-100)
-            .linkDistance(50)
-            .on("tick", this.on_tick);
+            .gravity(0.05)
+            .charge(-300)
+            .linkDistance(linkDistance)
+            .on("tick", this.onTick);
 
         // Define the zoom and drag behaviour.
         var zoom = d3.behavior.zoom()
-            .on("zoom", this.on_zoom);
+            .on("zoom", this.onZoom);
         d3$svg
             .attr("pointer-events", "all")
             .attr("viewBox", "0 0 " + width + " " + height)
@@ -464,31 +653,15 @@ function HarmGraph(d3$svg, width, height) {
 
         // Creates the graph data structure.
         force
-            .nodes(nodes)
-            .links(links)
+            .nodes(render.nodes)
+            .links(render.links)
             .start();
 
-        // Links enter.
-        d3$links = view.selectAll(".link")
-            .data(links)
-            .enter()
-                .append("line")
-                .attr("class", "link");
+        d3$links = view.selectAll(".link");
+        d3$nodes = view.selectAll(".node");
+        d3$hulls = view.selectAll(".hull");
 
-        // Nodes enter.
-        d3$nodes = view.selectAll(".node")
-            .data(nodes)
-            .enter()
-                .append("g")
-                .attr("class", "node")
-                .each(renderNode)
-                .call(force.drag);
-
-        // Nodes double click.
-        d3$nodes.on("dblclick", this.on_dblclick);
-
-        // Nodes title.
-        d3$nodes.append("title", title);
+        this.update();
 
         // Calm down the start of the force.
         var ticker = 0;
@@ -496,6 +669,193 @@ function HarmGraph(d3$svg, width, height) {
             force.tick();
             ticker++;
         }
+    };
+
+
+    /**
+     * Rendering function used to generate and regenerate the svg elements from the render data.
+     */
+    this.update = function () {
+        console.log("Rendering..");
+        console.log("Render: ", render);
+        this.updateHulls();
+        this.updateLinks();
+        this.updateNodes();
+        force.start();
+    };
+
+
+    this.updateLinks = function () {
+        console.log("Rendering links..");
+        // bind data
+        d3$links = d3$links.data(render.links);
+        // define enter
+        d3$links.enter()
+            .append("line")
+            .attr("class", "link");
+        // define exit
+        d3$links.exit().remove();
+    };
+
+
+    this.updateNodes = function () {
+        console.log("Rendering nodes..");
+        // bind data
+        d3$nodes = d3$nodes.data(render.nodes);
+        // define enter
+        d3$nodes.enter()
+            .append("g")
+            .attr("class", "node")
+            .each(function (node, index) {
+                var d3$node = d3.select(d3$nodes[0][index]);
+                switch (node.type) {
+                    case Element.HOST:
+                        if (node.expanded) renderHostSunburst(d3$node, node, index, null);
+                        else renderHost(d3$node, node, index, null);
+                        break;
+                    case Element.GROUP:
+                        renderGroup(d3$node, node, index, this.expandGroup.bind(this));
+                        break;
+                    default:
+                        console.error("Unknown element type '" + node.type +"'");
+                        break;
+                }
+            }.bind(this))
+            .call(force.drag);
+        // define exit
+        d3$nodes.exit().remove();
+        // um title here too? idk
+        d3$nodes.append("title", title);
+
+        // Bring nodes to the front initially..
+        d3$nodes.each(function () {
+            this.parentNode.appendChild(this);
+        });
+        // ..and on mouseover
+        d3$nodes.on("mouseover", function () {
+            this.parentNode.appendChild(this);
+        })
+    };
+
+
+    this.updateHulls = function () {
+        console.log("Rendering hulls..");
+        var curve = d3.svg.line()
+            .interpolate("cardinal-closed")
+            .tension(0.85);
+
+        // bind data
+        d3$hulls = d3$hulls.data(generateConvexHulls(render.nodes));
+        // define enter
+        d3$hulls.enter()
+            .append("path")
+            .attr("class", "hull")
+            .attr("d", function (hull) {
+                return curve(hull.path);
+            })
+            .style("fill", function (hull) {
+                return "LightGrey";
+            })
+            .on("dblclick", this.collapseGroup.bind(this));
+        // define exit
+        d3$hulls.exit().remove();
+    };
+
+
+    this.generateRender = function () {
+        // render all if no layers exist
+        if (layers.length == 0) {
+            return {
+                nodes: nodes,
+                links: links
+            }
+        }
+
+        // Otherwise..
+        var render = {
+            nodes: [],
+            links: []
+        };
+
+        var i, node;
+        // ..add in un-layered nodes..
+        for (i = 0; i < nodes.length; i++) {
+            node = nodes[i];
+            if (node.group == null) {
+                render.nodes.push(node);
+            }
+        }
+
+        // ..then begin processing layers..
+        var layer = layers[0];
+        var group;
+        var j;
+        for (i = 0; i < layer.length; i++) {
+            group = layer[i];
+
+            // on generate render - if dynamically modifying it, may always have a
+            // non-zero group size / starting collapsed.
+            if (group.size == 0) {  // if expanded
+                for (j = 0; j < group.elements.length; j++) {
+                    node = group.elements[j];
+                    render.nodes.push(node);
+                }
+            } else {
+                render.nodes.push(group);
+            }
+        }
+
+        // alternative approach
+        var link, linkSource, linkTarget;
+        var renderLink;
+        var exists, existingRenderLink;
+        for (i = 0; i < links.length; i++) {
+            link = links[i];
+            linkSource = nodes[link.source];
+            linkTarget = nodes[link.target];
+            renderLink = {
+                source: null,
+                target: null,
+                size: 1
+            };
+
+            // if internal link within a collapsed group
+            if (linkSource.group && linkTarget.group &&
+                linkSource.group == linkTarget.group &&
+                linkSource.group.size > 0)
+                continue;  // skip it
+
+            // if source non-grouped or in expanded group, point to it
+            if (!linkSource.group || (linkSource.group && linkSource.group.size == 0)) {
+                renderLink.source = render.nodes.indexOf(linkSource);
+            } else {  // else point to it's group
+                renderLink.source = render.nodes.indexOf(linkSource.group);
+            }
+
+            // similarly with the target
+            if (!linkTarget.group || (linkTarget.group && linkTarget.group.size == 0)) {
+                renderLink.target = render.nodes.indexOf(linkTarget);
+            } else {
+                renderLink.target = render.nodes.indexOf(linkTarget.group);
+            }
+
+            // check if the newly made link exists - if so, increase size
+            exists = false;
+            for (j = 0; j < render.links.length; j++) {
+                existingRenderLink = render.links[j];
+                if (existingRenderLink.source == renderLink.source &&
+                    existingRenderLink.target == renderLink.target) {
+                    existingRenderLink.size++;
+                    exists = true;
+                    break;
+                }
+            }
+            // otherwise, add it to the render
+            if (!exists) render.links.push(renderLink);
+        }
+
+        // return
+        return render;
     };
 
 
@@ -509,6 +869,11 @@ function HarmGraph(d3$svg, width, height) {
 
     this.addLink = function (link) {
         links.push(link);
+    };
+
+
+    this.addLayer = function (layer) {
+        layers.push(layer);
     };
 
 
@@ -530,6 +895,15 @@ function HarmGraph(d3$svg, width, height) {
     };
 
 
+    this.addLayers = function (layers) {
+        var i_layer, layer;
+        for (i_layer = 0; i_layer < layers.length; i_layer++) {
+            layer = layers[i_layer];
+            this.addLayer(layer);
+        }
+    };
+
+
     this.addEntireJsonHarm = function (harm) {
         this.addNodes(harm.nodes);
         this.addLinks(harm.links);
@@ -537,52 +911,262 @@ function HarmGraph(d3$svg, width, height) {
 
 
     this.addEntireHarm = function ($harm) {
-        var j_nodes = [], j_links = [], upperLayers;
+        var hosts = [], links = [], layers = [];
 
-        var $nodes = $harm.find('nodes');
-        $nodes.find('node').each(function () {
-            var $node = $(this);
-            // parse node information
-            var j_node = {
-                id: $node.attr('id'),
-                name: $node.attr('name')
+        var $hosts = $harm.find('nodes');
+        $hosts.find('node').each(function () {
+            var $host = $(this);
+            // parse host information
+            var host = {
+                id: $host.attr('id'),
+                name: $host.attr('name'),
+                type: Element.HOST,
+                group: null
             };
             // parse metric values
-            var $values = $node.find('values');
-            j_node.impact = parseFloat($values.find('impact').text());
-            j_node.children = [parse_$vulnerability($node.find('vulnerabilities').children().first())];
-            j_nodes.push(j_node);
+            var $values = $host.find('values');
+            host.impact = parseFloat($values.find('impact').text());
+            host.children = [parse_$vulnerability($host.find('vulnerabilities').children().first())];
+            hosts.push(host);
         });
 
-        var $edges = $harm.find('edge');
-        $edges.each(function () {
+        var $links = $harm.find('edge');
+        $links.each(function () {
             var $link = $(this);
             // parse link information
-            var j_link = {
+            var link = {
                 source: parseInt($link.find('source').text()),
                 target: parseInt($link.find('target').text())
             };
             // parse metric values (when existing)
             var $values = $link.find('values');
-            j_links.push(j_link);
+            links.push(link);
         });
 
-        console.log(nodes);
+        // Parse the upper layers.
+        $harm.find('layer').each(function (index) {
+            var $layer = $(this);
+            var layer = [];
+            $layer.find('group').each(function (index) {
+                var $group = $(this);
+                var group = {
+                    id: index,
+                    indices: [],
+                    elements: [],
+                    size: 0,
+                    type: Element.GROUP
+                };
+                $group.find('element').each(function () {
+                    // group.size++;  // comment this line to start groups expanded
+                    group.indices.push(parseInt($(this).text()));
+                });
+                layer.push(group);
+            });
+            layers.push(layer);
+        });
+
+        if (layers.length > 0) {
+            // Link the bottom upper layer with the nodes..
+            var layer = layers[0],
+                group, index;
+            var i, j;
+            for (i = 0; i < layer.length; i++) {  // groups in the layer
+                group = layer[i];
+
+                for (j = 0; j < group.indices.length; j++) {  // elements of the group
+                    index = group.indices[j];
+                    // Link each to the other
+                    hosts[index].group = group;
+                    group.elements.push(hosts[index]);
+                }
+            }
+
+            // Link the upper layers[1..] with their respective lower layers..
+            var k;
+            for (i = 1; i < layers.length; i++) {  // layers (excluding the lowest 0) (1..n)
+                layer = layers[i];
+
+                for (j = 0; j < layer.length; j++) {  // groups in the layer
+                    group = layer[j];
+
+                    for (k = 0; k < group.indices.length; k++) {  // elements of the group
+                        index = group.indices[k];
+                        // Link to lower layer
+                        layers[i - 1][index].group = group;
+                        group.elements.push(layers[i - 1][index]);
+                    }
+                }
+            }
+        }
+
+        console.log(hosts);
         console.log(links);
-        console.log(j_nodes);
-        console.log(j_links);
-        this.addNodes(j_nodes);
-        this.addLinks(j_links);
+        console.log(layers);
+        this.addNodes(hosts);
+        this.addLinks(links);
+        this.addLayers(layers);
+    };
+
+
+    this.isExternalLink = function (link) {
+        return link.source.group != link.target.group;
+    };
+
+
+    this.isInternalLink = function (link) {
+        return link.source.group == link.target.group;
+    };
+
+
+    this.collapseGroup = function(hull, index) {
+        console.log(hull);
+        var group = hull.group,
+            groupLinks = [];
+        var centroid = {x: 0, y: 0};
+        // Iterate of the groups (rendered) nodes
+        var i, node, renderNodeIndex;
+        for (i = 0; i < group.elements.length; i++) {
+            node = group.elements[i];
+            // Sum the coordinates for centroid calculation
+            centroid.x += node.x;
+            centroid.y += node.y;
+
+            // Remove the node from the render mesh
+            renderNodeIndex = render.nodes.indexOf(node);
+            render.nodes.splice(renderNodeIndex, 1);
+
+            // Remove all group links from the render mesh
+            var nodesLinks = getNodesLinks(node, render.links);
+            var j, nodeLink, collapsedLink, renderLinkIndex;
+            for (j = 0; j < nodesLinks.length; j++) {
+                nodeLink = nodesLinks[j];
+
+                // Remove the link from the render mesh
+                renderLinkIndex = render.links.indexOf(nodeLink);
+                render.links.splice(renderLinkIndex, 1);
+
+                // Create a new collapsed link
+                collapsedLink = {
+                    source: nodeLink.source.group && nodeLink.source.group == group ? group : nodeLink.source,
+                    target: nodeLink.target.group && nodeLink.target.group == group ? group : nodeLink.target,
+                    size: 1
+                };
+
+                if (collapsedLink.source == collapsedLink.target)
+                    continue;
+
+                // If existing, up the size
+                var k, existingRenderLink, exists = false;
+                for (k = 0; k < groupLinks.length; k++) {
+                    existingRenderLink = groupLinks[k];
+                    if (existingRenderLink.source == collapsedLink.source &&
+                        existingRenderLink.target == collapsedLink.target) {
+                        existingRenderLink.size++;
+                        exists = true;
+                        break;
+                    }
+                }
+                // Otherwise, add to the render
+                if (!exists) groupLinks.push(collapsedLink);
+            }
+        }
+        // Initiate exit for removed links and nodes
+        this.update();
+
+        // Average the coordinate sum to get the centroid
+        centroid.x /= group.elements.length;
+        centroid.y /= group.elements.length;
+        // Set the expanded size
+        group.size = group.elements.length;
+        group.x = centroid.x;
+        group.y = centroid.y;
+
+        render.nodes.push(group);
+        for (i = 0; i < groupLinks.length; i++) {
+            render.links.push(groupLinks[i]);
+        }
+
+        // Initiate enter for added group nodes and links
+        this.update();
+    };
+
+
+    this.expandGroup = function(group, index) {
+        var renderIndex;
+        // Remove the node from the render
+        renderIndex = render.nodes.indexOf(group);
+        render.nodes.splice(renderIndex, 1);
+        // Remove the groups links
+        var groupsLinks = getNodesLinks(group, render.links);
+        var i, groupLink;
+        for (i = 0; i < groupsLinks.length; i++) {
+            groupLink = groupsLinks[i];
+            // Remove the link from the render
+            renderIndex = render.links.indexOf(groupLink);
+            render.links.splice(renderIndex, 1);
+        }
+        group.size = 0;
+
+        // Initiate exit for removed group and links
+        this.update();
+
+        // Add in all children
+        var node;
+        for (i = 0; i < group.elements.length; i++) {
+            node = group.elements[i];
+            render.nodes.push(node);
+        }
+        // Add in all their links
+        var nodesLinks, nodeLink;
+        for (i = 0; i < group.elements.length; i++) {
+            node = group.elements[i];
+            // Iterate over each hosts links, adding them accordingly
+            nodesLinks = getNodesLinks(nodes.indexOf(node), links);
+            var j, renderLink,
+                linkSource, linkTarget;
+            for (j = 0; j < nodesLinks.length; j++) {
+                nodeLink = nodesLinks[j];
+                linkSource = nodes[nodeLink.source];
+                linkTarget = nodes[nodeLink.target];
+                renderLink = {
+                    source: null,
+                    target: null,
+                    size: 1
+                };
+
+                // if source non-grouped or in expanded group, point to it
+                if (!linkSource.group || (linkSource.group && linkSource.group.size == 0)) {
+                    renderLink.source = render.nodes.indexOf(linkSource);
+                } else {  // else point to it's group
+                    renderLink.source = render.nodes.indexOf(linkSource.group);
+                }
+
+                // similarly with the target
+                if (!linkTarget.group || (linkTarget.group && linkTarget.group.size == 0)) {
+                    renderLink.target = render.nodes.indexOf(linkTarget);
+                } else {
+                    renderLink.target = render.nodes.indexOf(linkTarget.group);
+                }
+
+                render.links.push(renderLink);
+            }
+        }
+
+        // Initiate enter for added hosts and links
+        this.update();
     };
 
 
     this.dump = function () {
         return {
-            "nodes": nodes,
-            "links": links
+            nodes: nodes,
+            links: links,
+            layers: layers,
+            render: render
         }
     };
 }
+
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Harm graph utility functions
@@ -617,3 +1201,140 @@ function parse_$vulnerability($vulnerability) {
     }
     return vulnerability;
 }
+
+
+/**
+ * Network class that represents either a subnet itself or the cluster of nodes.
+ *
+ * NOTE: Within this class, the keyword elem refers to an ambiguous node / network.
+ *
+ * @param data
+ * @param previous
+ * @param index
+ * @param expanded
+ * @constructor
+ */
+/*
+ function Network(data, previous, index, expanded) {
+ expanded = expanded || {};
+
+ var group_map = {},
+ node_map = {},
+ link_map = {},
+
+ prev_group_nodes = {},
+ prev_group_centroids = {},
+
+ nodes = [],
+ links = [];
+
+ // Process the previous nodes for re-use or centroid calculation.
+ if (previous) {
+ previous.nodes.forEach(function (elem) {
+ var i = index(elem),
+ out_elem;
+
+ if (elem.size > 0) {
+ prev_group_nodes[i] = elem;
+ elem.size = 0;
+ } else {
+ out_elem = prev_group_centroids[i] ||
+ (prev_group_centroids[i] = {x: 0, y: 0, count: 0});
+ out_elem.x += elem.x;
+ out_elem.y += elem.y;
+ out_elem.count += 1;
+ }
+ });
+ }
+
+ // Determine the nodes to render
+ for (var k = 0; k < data.nodes.length; ++k) {
+ var node = data.nodes[k],
+ i = index(node),
+ group = group_map[i] ||
+ (group_map[i] = prev_group_nodes[i]) ||
+ (group_map[i] = {group: i, size: o, nodes: []});
+
+ // if the node is part of an expanded subnet
+ if (expanded[i]) {
+ node_map[node.name] = nodes.length;
+ nodes.push(node);
+
+ if (prev_group_nodes[i]) {
+ node.x = prev_group_centroids[i].x + Math.random();
+ node.y = prev_group_centroids[i].y + Math.random();
+ }
+ } else {  // the node is part of a collapsed subnet
+ // Check if it is a new cluster
+ if (group.size == 0) {
+ node_map[i] = nodes.length;
+ nodes.push(group);
+ if (prev_group_centroids[i]) {
+ group.x = prev_group_centroids[i].x / prev_group_centroids[i].count;
+ group.y = prev_group_centroids[i].y / prev_group_centroids[i].count;
+ }
+ }
+ group.nodes.push(node);
+ }
+ group.size += 1;
+ node.group = group;
+ }
+
+ for (i in group_map) {
+ group_map[i].link_count = 0;
+ }
+
+ // Determine the links to render
+ for (k = 0; k < data.links.length; ++k) {
+ var edge = data.links[k],
+ source = index(edge.source),
+ target = index(edge.target);
+
+ if (source != target) {
+ group_map[source].link_count++;
+ group_map[target].link_count++;
+ }
+
+ source = expanded[source] ? node_map[edge.source.name] : node_map[source];
+ target = expanded[target] ? node_map[edge.target.name] : node_map[target];
+ var i = (source < target ? source + "|" + target : target + "|" + source),
+ link = link_map[i] ||
+ (link_map[i] = {source: source, target: target, size: 0});
+ link.size += 1;
+ }
+
+ for (i in link_map) {
+ links.push(link_map[i]);
+ }
+
+ return {nodes: nodes, links: links};
+ }
+ */
+
+function convexHulls(nodes, index, offset) {
+    var hulls = {};
+
+    // create point sets..
+    for (var k = 0; k < nodes.length; ++k) {
+        var elem = nodes[k];
+        if (elem.size) continue;
+
+        var i = index(node),
+            points = hulls[i] || (hulls[i] = []);
+
+        points.push([node.x - offset, node.y - offset]);
+        points.push([node.x - offset, node.y + offset]);
+        points.push([node.x + offset, node.y + offset]);
+        points.push([node.x + offset, node.y - offset]);
+    }
+
+    // create the convex hulls
+    var hullset = [];
+    for (i in hulls) {
+        hullset.push({group: i, path: d3.geom.hull(hulls[i])});
+    }
+
+    return hullset;
+}
+
+
