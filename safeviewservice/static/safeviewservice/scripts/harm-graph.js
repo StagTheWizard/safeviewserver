@@ -508,13 +508,6 @@ function renderHostSunburst(d3$node, host, index, onDoubleClick) {
  */
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-// const Direction = {
-//     UP: 0,
-//     DOWN: 1,
-//     LEFT: 2,
-//     RIGHT: 3
-// };
-
 const Element = {
     HOST: 0,
     GROUP: 1
@@ -540,6 +533,9 @@ function HarmGraph(d3$svg, width, height) {
     var force;
     // The view group inside the SVG - on which the scaling and translations are performed (zoom and drag).
     var view;
+
+    var zoomListener;
+    var dragListener;
 
     // Arrays of the data elements.
     var nodes = [];
@@ -600,40 +596,28 @@ function HarmGraph(d3$svg, width, height) {
     };
 
 
-    // this.onDragStart = function (data) {
-    //     d3.select(this).classed("fixed", data.fixed = true);
-        // d3.event.stopPropagation();
-    // };
+    this.onDragStart = function (node) {
+        d3.event.sourceEvent.stopPropagation();
+        d3.select(this).classed("dragging", true);
+        force.start();
+    };
 
 
-    this.onDoubleClick = function (node, i) {
-        console.log("Event[dblclick] on node " + node.id);
-        console.log(node);
-        // Expand the node.
-        node.expanded = node.expanded ? false : true;
+    this.onDrag = function (node) {
+        d3.select(this)
+            .attr("cx", node.x = d3.event.x)
+            .attr("cy", node.y = d3.event.y);
+    };
 
-        var d3$node = d3.select(this);
-        d3$node.selectAll("*").remove();
 
-        // renderNode(node, i);
-        if (node.expanded) {
-            renderHostSunburst(d3$node, node, i);
-        } else {
-            renderHost(d3$node, node, i);
-        }
+    this.onDragEnd = function (node) {
+        d3.select(this).classed("dragging", false);
     };
 
 
     this.onZoom = function () {
         view.attr("transform", "translate(" + d3.event.translate + ")scale(" + d3.event.scale + ")");
     };
-
-
-    // this.pan = function (direction) {
-    //     var speed = 200;
-    //     var translateCoords = d3.transform(view.attr("transform"));
-    //     if (direction == Direction.LEFT || direction == )
-    // };
 
 
     /**
@@ -651,31 +635,29 @@ function HarmGraph(d3$svg, width, height) {
             .on("tick", this.onTick);
 
         // Define the zoom and drag behaviour.
-        var zoom = d3.behavior.zoom()
+        zoomListener = d3.behavior.zoom()
             .scaleExtent([0.1, 3])
             .on("zoom", this.onZoom);
         d3$svg
             .attr("pointer-events", "all")
             .attr("viewBox", "0 0 " + width + " " + height)
             .attr("preserveAspectRatio", "xMinYMid")
-            .call(zoom)
+            .call(zoomListener)
             .on("dblclick.zoom", null);
 
         view = d3$svg.append("g");
 
-        // var dragListenenr = d3.behavior.drag()
-        //     .on("drag", function(node) {
-        //        var deltaCoords = d3.mouse(d3$svg,)
-        //     });
+        dragListener = d3.behavior.drag()
+            .origin(function (node) { return node; })
+            .on("dragstart", this.onDragStart)
+            .on("drag", this.onDrag)
+            .on("dragend", this.onDragEnd);
 
 
         // Define the div for the tooltip.
         var div = d3.select("body").append("div")
             .attr("class", "tooltip")
             .style("opacity", 0);
-
-        //force.drag()
-        //    .on("dragstart", this.on_drag_start);
 
         // Creates the graph data structure.
         force
@@ -686,8 +668,6 @@ function HarmGraph(d3$svg, width, height) {
         d3$links = view.selectAll(".link");
         d3$nodes = view.selectAll(".node");
         d3$hulls = view.selectAll(".hull");
-
-        // d3$nodes.on("dragstart", this.onDragStart);
 
         this.update();
 
@@ -764,7 +744,9 @@ function HarmGraph(d3$svg, width, height) {
         // ..and on mouseover
         d3$nodes.on("mouseover", function () {
             this.parentNode.appendChild(this);
-        })
+        });
+
+        d3$nodes.call(dragListener);
     };
 
 
@@ -1049,12 +1031,14 @@ function HarmGraph(d3$svg, width, height) {
 
 
     this.expandHost = function (host, index) {
+        // Store the position prior expansion
         var pos = {x: host.x, y: host.y};
         // console.log("Pos, ", position, host.px, host.py);
         var d3$node = d3.select(d3$nodes[0][nodes.indexOf(host)]);
         d3$node.selectAll("*").remove();
         host.expanded = true;
         renderHostSunburst(d3$node, host, index, this.collapseHost.bind(this));
+        // Set the new position and it's previous position to the prior position
         host.x = pos.x;
         host.y = pos.y;
         host.px = pos.x;
@@ -1063,12 +1047,14 @@ function HarmGraph(d3$svg, width, height) {
 
 
     this.collapseHost = function (host, index) {
+        // Store the position prior collapse
         var pos = {x: host.x, y: host.y};
         // console.log("Pos, ", position, host.px, host.py);
         var d3$node = d3.select(d3$nodes[0][nodes.indexOf(host)]);
         d3$node.selectAll("*").remove();
         host.expanded = false;
         renderHost(d3$node, host, index, this.expandHost.bind(this));
+        // Set the new position and it's previous position to the prior position
         host.x = pos.x;
         host.y = pos.y;
         host.px = pos.x;
