@@ -48,7 +48,7 @@ function paletteInterpolation(n) {
  */
 function collision(elem) {
     var r = (elem.type == Element.HOST && elem.expanded) ?
-            120 : hostRadius(elem) * 2,
+            240 : hostRadius(elem) * 2,
         nx1 = elem.x - r,
         nx2 = elem.x + r,
         ny1 = elem.y - r,
@@ -130,12 +130,12 @@ function linkDistance(link, index) {
 
     var c = 10;  // element-gap constant
 
-    var distance;
+    var distance = 0;
     if (source.group && target.group && source.group == target.group) {
-        distance = c;
-        // console.log("Internal link", link, distance);
+        if (source.type == Element.HOST && source.expanded) distance += 40;
+        if (target.type == Element.HOST && target.expanded) distance += 40;
+        if (distance == 0) distance = c;
     } else {
-        distance = 0;
         if (source.group) {
             distance += 30 + c*source.group.size;
         } else {
@@ -146,7 +146,6 @@ function linkDistance(link, index) {
         } else {
             distance += 30;
         }
-        // console.log("External link", link, distance);
     }
     return distance;
 }
@@ -299,6 +298,9 @@ function generateConvexHulls(nodes) {
                     group: node.group,
                     points: []
                 });
+
+            if (node.expanded) offset = 30;
+            else offset = 15;
 
             groupPointsMap.points.push([node.x-offset, node.y-offset]);
             groupPointsMap.points.push([node.x-offset, node.y+offset]);
@@ -700,7 +702,8 @@ function HarmGraph(d3$svg, width, height) {
         // define enter
         d3$links.enter()
             .append("line")
-            .attr("class", "link");
+            .attr("class", "link")
+            .style("stroke-width", function (link) { return link.size || 1; });
         // define exit
         d3$links.exit().remove();
     };
@@ -1043,6 +1046,8 @@ function HarmGraph(d3$svg, width, height) {
         host.y = pos.y;
         host.px = pos.x;
         host.py = pos.y;
+
+        force.start();
     };
 
 
@@ -1059,6 +1064,8 @@ function HarmGraph(d3$svg, width, height) {
         host.y = pos.y;
         host.px = pos.x;
         host.py = pos.y;
+
+        force.start();
     };
 
 
@@ -1245,140 +1252,3 @@ function parse_$vulnerability($vulnerability) {
     }
     return vulnerability;
 }
-
-
-/**
- * Network class that represents either a subnet itself or the cluster of nodes.
- *
- * NOTE: Within this class, the keyword elem refers to an ambiguous node / network.
- *
- * @param data
- * @param previous
- * @param index
- * @param expanded
- * @constructor
- */
-/*
- function Network(data, previous, index, expanded) {
- expanded = expanded || {};
-
- var group_map = {},
- node_map = {},
- link_map = {},
-
- prev_group_nodes = {},
- prev_group_centroids = {},
-
- nodes = [],
- links = [];
-
- // Process the previous nodes for re-use or centroid calculation.
- if (previous) {
- previous.nodes.forEach(function (elem) {
- var i = index(elem),
- out_elem;
-
- if (elem.size > 0) {
- prev_group_nodes[i] = elem;
- elem.size = 0;
- } else {
- out_elem = prev_group_centroids[i] ||
- (prev_group_centroids[i] = {x: 0, y: 0, count: 0});
- out_elem.x += elem.x;
- out_elem.y += elem.y;
- out_elem.count += 1;
- }
- });
- }
-
- // Determine the nodes to render
- for (var k = 0; k < data.nodes.length; ++k) {
- var node = data.nodes[k],
- i = index(node),
- group = group_map[i] ||
- (group_map[i] = prev_group_nodes[i]) ||
- (group_map[i] = {group: i, size: o, nodes: []});
-
- // if the node is part of an expanded subnet
- if (expanded[i]) {
- node_map[node.name] = nodes.length;
- nodes.push(node);
-
- if (prev_group_nodes[i]) {
- node.x = prev_group_centroids[i].x + Math.random();
- node.y = prev_group_centroids[i].y + Math.random();
- }
- } else {  // the node is part of a collapsed subnet
- // Check if it is a new cluster
- if (group.size == 0) {
- node_map[i] = nodes.length;
- nodes.push(group);
- if (prev_group_centroids[i]) {
- group.x = prev_group_centroids[i].x / prev_group_centroids[i].count;
- group.y = prev_group_centroids[i].y / prev_group_centroids[i].count;
- }
- }
- group.nodes.push(node);
- }
- group.size += 1;
- node.group = group;
- }
-
- for (i in group_map) {
- group_map[i].link_count = 0;
- }
-
- // Determine the links to render
- for (k = 0; k < data.links.length; ++k) {
- var edge = data.links[k],
- source = index(edge.source),
- target = index(edge.target);
-
- if (source != target) {
- group_map[source].link_count++;
- group_map[target].link_count++;
- }
-
- source = expanded[source] ? node_map[edge.source.name] : node_map[source];
- target = expanded[target] ? node_map[edge.target.name] : node_map[target];
- var i = (source < target ? source + "|" + target : target + "|" + source),
- link = link_map[i] ||
- (link_map[i] = {source: source, target: target, size: 0});
- link.size += 1;
- }
-
- for (i in link_map) {
- links.push(link_map[i]);
- }
-
- return {nodes: nodes, links: links};
- }
- */
-
-function convexHulls(nodes, index, offset) {
-    var hulls = {};
-
-    // create point sets..
-    for (var k = 0; k < nodes.length; ++k) {
-        var elem = nodes[k];
-        if (elem.size) continue;
-
-        var i = index(node),
-            points = hulls[i] || (hulls[i] = []);
-
-        points.push([node.x - offset, node.y - offset]);
-        points.push([node.x - offset, node.y + offset]);
-        points.push([node.x + offset, node.y + offset]);
-        points.push([node.x + offset, node.y - offset]);
-    }
-
-    // create the convex hulls
-    var hullset = [];
-    for (i in hulls) {
-        hullset.push({group: i, path: d3.geom.hull(hulls[i])});
-    }
-
-    return hullset;
-}
-
-
