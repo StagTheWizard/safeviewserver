@@ -1,8 +1,9 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" xmlns="http://www.w3.org/1999/html">
 <head>
     <meta charset="UTF-8">
     <title>Safeview</title>
+
 
     {% load static %}
     <script language="JavaScript" type="text/javascript" src="https://d3js.org/d3.v3.min.js"></script>
@@ -17,78 +18,86 @@
     <script language="JavaScript" type="text/javascript"
             src="{% static "safeviewservice/scripts/harm-graph.js" %}"></script>
 
-    <link href="{% static "safeviewservice/css/style.css" %}" rel="stylesheet">
+    <link rel="stylesheet" href="http://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
+    <script src="http://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"></script>
 
+    <link href="{% static "safeviewservice/css/style.css" %}" rel="stylesheet">
 </head>
 
 
 <body>
-
-<div id="banner">
-    <p id="banner-title">Safelite Network Security Visualisation</p>
+<div class="container-fluid">
+    <div class="row">
+        {# THE SIDEBAR SECTION #}
+        <div class="col-sm-2 col-md-2 col-lg-2 sidebar">
+            <ul>
+                <li class="sidebar-group form-group">
+                    <h5 class="panel-title" data-toggle="collapse" href="#system-choice" aria-expanded="true">
+                        <a class="panel-title-text">
+{#                            <span class="caret"></span>#}
+                            Systems
+                        </a>
+                    </h5>
+                    <div id="system-choice" class="panel-collapse collapse in" aria-expanded="true">
+                        <ul class="list-group">
+                            {# System IDs populate this #}
+                        </ul>
+                    </div>
+                </li>
+                <li class="sidebar-group form-group" data-toggle="collapse" href="#harm-choice" aria-expanded="true">
+                    <h5 class="panel-title">
+                        <a class="panel-title-text">
+{#                            <span class="caret"></span>#}
+                            Harms
+                        </a>
+                    </h5>
+                    <div id="harm-choice" class="panel-collapse collapse in" aria-expanded="true">
+                        <ul class="list-group">
+                            {# Harm IDs populate this #}
+                        </ul>
+                    </div>
+                </li>
+                {% comment %}
+                <div class="sidebar-group form-group">
+                    <h5>Upload</h5>
+                    <form id="upload-form" action="" method="post" enctype="multipart/form-data">
+                        <select id="upload-choice" class="form-control" name="upload-choice"></select>
+                        <input type="file" name="upload-file" id="upload-file" value="Choose File">
+                        <br>
+                        <input type="submit" name="submit" class="sidebar-button btn btn-primary btn-sm disabled"
+                               value="Upload">
+                    </form>
+                </div>
+                {% endcomment %}
+                <li class="sidebar-group">
+                    <h5 class="panel-title">
+                        <a class="panel-title-text">
+                            Query
+                        </a>
+                    </h5>
+                    <div class="sidebar-subgroup form-group">
+                        <label for="harm-query">Query host names:</label>
+                        <input id="harm-query" class="form-control" type="text" onchange="on_query_changes(this.value)">
+                    </div>
+                </li>
+            </ul>
+        </div>
+        {# THE CENTRAL CONTENT BODY / DASH BOARD #}
+        <div class="col-sm-9 col-sm-offset-3
+                    col-md-10 col-md-offset-2
+                    col-lg-10 col-lg-offset-2
+                    main">
+            <div id="header" class="row">
+            </div>
+            <div id="content">
+                <div id="harm-upper" align="center">
+                </div>
+            </div>
+            <div id="footer" class="row">
+            </div>
+        </div>
+    </div>
 </div>
-
-
-<div class="container">
-
-
-    <div id="sidebar">
-        <div id="system-management">
-            <div class="sidebar-group">
-                <label for="system-choice">System</label>
-                <select id="system-choice" name="system-choice" onchange="on_system_selected()"></select>
-                <br>
-                <button class="sidebar-button" onclick="add_system_prompt()">Add</button>
-                <br>
-                <button class="sidebar-button" onclick="del_system_prompt()">Delete</button>
-            </div>
-
-            <div class="sidebar-group">
-                <label for="harm-choice">Harm</label>
-                <select id="harm-choice" name="harm-choice" onchange="on_harm_selected()"></select>
-                <br>
-                <button class="sidebar-button" onclick="on_harm_selected()">Display</button>
-            </div>
-
-            <div class="sidebar-group">
-                <form id="upload-form" action="" method="post" enctype="multipart/form-data">
-                    <label for="upload-choice">Upload to</label>
-                    <select id="upload-choice" name="upload-choice"></select>
-                    <input type="file" name="upload-file" id="upload-file" value="Choose File">
-                    <br>
-                    <input type="submit" name="submit" class="sidebar-button" value="Upload">
-                </form>
-            </div>
-        </div>
-
-        <div id="query-management" class="sidebar-group">
-            <label for="harm-query">Query host names:</label>
-            <input id="harm-query" type="text" onchange="on_query_changes(this.value)">
-        </div>
-    </div>
-
-
-    <div id="header">
-
-    </div>
-
-
-    <div id="content">
-        <div id="harm-upper" align="center">
-
-        </div>
-
-        <div id="harm-lower" align="center">
-
-        </div>
-    </div>
-
-
-    <div id="footer">
-
-    </div>
-</div>
-
 
 <script language="JavaScript">
     var $content = $("#content");
@@ -214,11 +223,15 @@
                 $systems.find('system').each(function () {
                     var system_id = $(this).attr('id');
                     // populate the system-choice
-                    var system_option = $("<option></option>").val(system_id).text(system_id);
-                    $("#system-choice").append(system_option);
+                    var $system_item = $("<li></li>")
+                            .addClass("list-group-item")
+                            .val(system_id)
+                            .text(system_id)
+                            .click(on_system_selected);
+                    $("#system-choice").find("ul").append($system_item);
                     // populate the upload-choice
-                    var upload_option = $("<option></option>").val(system_id).text(system_id);
-                    $("#upload-choice").append(upload_option);
+                    {#                    var upload_option = $("<li></li>").val(system_id).text(system_id);#}
+                    {#                    $("#upload-choice").append(upload_option);#}
                 });
                 resolve();
             })
@@ -231,15 +244,21 @@
             request_system(system_id).then(function ($system) {
                 // Drop the existing options
                 var $harm_choice = $("#harm-choice");
-                $harm_choice.find("option").remove();
+                $harm_choice.find("li").remove();
 
                 $system.find('harm').each(function () {
                     var harm_id = $(this).attr('id');
                     console.log(harm_id);
                     // populate the harm-choice
-                    var $harm_option = $("<option></option>").val(harm_id).text(harm_id);
-                    $harm_choice.append($harm_option);
+                    var $harm_item = $("<li></li>")
+                            .addClass("list-group-item")
+                            .val(harm_id)
+                            .text(harm_id)
+                            .click(on_harm_selected);
+                    $harm_choice.find("ul").append($harm_item);
                 });
+                $harm_choice.find("li").first().addClass("selected");
+                console.log($harm_choice.find(".selected"));
                 resolve();
             });
         });
@@ -247,17 +266,27 @@
 
 
     function on_system_selected() {
+        $("#system-choice").find(".selected").removeClass("selected");
+        var $selected_system = $(this);
+        $selected_system.addClass("selected");
         return new Promise(function (resolve, reject) {
-            var system_id = $("#system-choice").find("option:selected").text();
-            populate_harm_ids(system_id).then(resolve);
+            var system_id = $selected_system.text();
+            populate_harm_ids(system_id).then(function () {
+                var $first_harm = $("#harm-choice").find("li").first();
+                $.proxy(on_harm_selected, $first_harm[0])();
+            }).then(resolve);
         });
     }
 
 
     function on_harm_selected() {
+        var $harm_choice = $("#harm-choice");
+        $harm_choice.find(".selected").removeClass("selected");
+        var $selected_harm = $(this);
+        $selected_harm.addClass("selected");
         return new Promise(function (resolve, reject) {
-            var system_id = $("#system-choice").find("option:selected").text();
-            var harm_id = $("#harm-choice").find("option:selected").text();
+            var system_id = $("#system-choice").find(".selected").text();
+            var harm_id = $selected_harm.text();
             request_harm(system_id, harm_id).then(function ($harm) {
                 // Remove he old harm.
                 $("#harm-upper").find("svg").remove();
@@ -281,7 +310,6 @@
 
 
     function on_query_changes(query) {
-        console.log("changed '" + query + "'");
         var d3$nodes = d3.selectAll(".node");
         d3$nodes.attr("opacity", 0.3);
         d3$nodes.filter(function (node) {
@@ -299,9 +327,14 @@
     // Initialise the system selector.
     populate_system_ids().then(function () {
         // ... and then the harm selector.
-        var system_id = $("#system-choice").find("option:selected").text();
+        var $selected_system = $("#system-choice").find("li").first();
+        $selected_system.addClass("selected");
+        var system_id = $selected_system.text();
         if (system_id !== null) {
-            populate_harm_ids(system_id).then(on_harm_selected);
+            populate_harm_ids(system_id).then(function () {
+                var $first_harm = $("#harm-choice").find("li").first();
+                $.proxy(on_harm_selected, $first_harm[0])();
+            });
         }
     });
 
