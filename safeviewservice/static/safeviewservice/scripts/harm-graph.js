@@ -16,8 +16,8 @@ var Palette = {
 
 
 function paletteInterpolation(n) {
-    const lowToMedInterpolation = d3.interpolateRgb(Palette.LOW, Palette.MEDIUM);
-    const medToHighInterpolation = d3.interpolateRgb(Palette.MEDIUM, Palette.HIGH);
+    const lowToMedInterpolation = d3.interpolateHsl(Palette.LOW, Palette.MEDIUM);
+    const medToHighInterpolation = d3.interpolateHsl(Palette.MEDIUM, Palette.HIGH);
     if (n < 0) n = 0;
     else if (n > 1) n = 1;
 
