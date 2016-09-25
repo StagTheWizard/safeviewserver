@@ -215,8 +215,13 @@ circle {
     stroke-width: 2px;
 }
 
+path.hull {
+    stroke: #fff;
+    stroke-width: 2px;
+}
+
 .link {
-    stroke: #999;
+    stroke: #777;
     stroke-opacity: .6;
 }
 
