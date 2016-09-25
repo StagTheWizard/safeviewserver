@@ -355,7 +355,7 @@ function getNodesLinks(node, links) {
  * @param i         The index.
  */
 function renderHost(d3$node, host, index, onDoubleClick) {
-    console.log("Rendering host '" + host.id + "', ", index, host);
+    // console.log("Rendering host '" + host.id + "', ", index, host);
 
     var tooltip = d3.select(".tooltip");
     d3$node.append("circle")
@@ -385,7 +385,7 @@ function renderHost(d3$node, host, index, onDoubleClick) {
 
 
 function renderGroup(d3$node, group, index, onDoubleClick) {
-    console.log("Rendering group '" + group.id + "', ", index, group);
+    // console.log("Rendering group '" + group.id + "', ", index, group);
 
     var tooltip = d3.select(".tooltip");
     d3$node.append("circle")
@@ -409,8 +409,7 @@ function renderGroup(d3$node, group, index, onDoubleClick) {
  * @param i         The node index
  */
 function renderHostSunburst(d3$node, host, index, onDoubleClick) {
-    console.log("Rendering expanded host '" + host.id + "', ", index, host);
-    // console.log("Rendering node " + node.id + "[expanded=" + node.expanded + "]");
+    // console.log("Rendering expanded host '" + host.id + "', ", index, host);
 
     var height = 60,
         width = 60,
@@ -698,7 +697,7 @@ function HarmGraph(d3$svg, width, height) {
     this.updateLinks = function () {
         console.log("Rendering links..");
         // bind data
-        d3$links = d3$links.data(render.links);
+        d3$links = d3$links.data(render.links, function (link) { return link.id });
         // define enter
         d3$links.enter()
             .append("line")
@@ -712,7 +711,7 @@ function HarmGraph(d3$svg, width, height) {
     this.updateNodes = function () {
         console.log("Rendering nodes..");
         // bind data
-        d3$nodes = d3$nodes.data(render.nodes);
+        d3$nodes = d3$nodes.data(render.nodes, function (node) { return node.id });
         // define enter
         d3$nodes.enter()
             .append("g")
@@ -760,7 +759,7 @@ function HarmGraph(d3$svg, width, height) {
             .tension(0.85);
 
         // bind data
-        d3$hulls = d3$hulls.data(generateConvexHulls(render.nodes));
+        d3$hulls = d3$hulls.data(generateConvexHulls(render.nodes), function (hull) { return hull.group.id });
         // define enter
         d3$hulls.enter()
             .append("path")
@@ -829,6 +828,7 @@ function HarmGraph(d3$svg, width, height) {
             linkSource = nodes[link.source];
             linkTarget = nodes[link.target];
             renderLink = {
+                id: null,
                 source: null,
                 target: null,
                 size: 1
@@ -843,15 +843,19 @@ function HarmGraph(d3$svg, width, height) {
             // if source non-grouped or in expanded group, point to it
             if (!linkSource.group || (linkSource.group && linkSource.group.size == 0)) {
                 renderLink.source = render.nodes.indexOf(linkSource);
+                renderLink.id = linkSource.id;
             } else {  // else point to it's group
                 renderLink.source = render.nodes.indexOf(linkSource.group);
+                renderLink.id = linkSource.group.id;
             }
 
             // similarly with the target
             if (!linkTarget.group || (linkTarget.group && linkTarget.group.size == 0)) {
                 renderLink.target = render.nodes.indexOf(linkTarget);
+                renderLink.id += "-" + linkTarget.id;
             } else {
                 renderLink.target = render.nodes.indexOf(linkTarget.group);
+                renderLink.id += "-" + linkTarget.group.id;
             }
 
             // check if the newly made link exists - if so, increase size
@@ -929,7 +933,7 @@ function HarmGraph(d3$svg, width, height) {
         var hosts = [], links = [], layers = [];
 
         var $hosts = $harm.find('nodes');
-        $hosts.find('node').each(function () {
+        $hosts.find('node').each(function (index) {
             var $host = $(this);
             // parse host information
             var host = {
@@ -946,10 +950,11 @@ function HarmGraph(d3$svg, width, height) {
         });
 
         var $links = $harm.find('edge');
-        $links.each(function () {
+        $links.each(function (index) {
             var $link = $(this);
             // parse link information
             var link = {
+                id: index,
                 source: parseInt($link.find('source').text()),
                 target: parseInt($link.find('target').text())
             };
@@ -1098,10 +1103,13 @@ function HarmGraph(d3$svg, width, height) {
 
                 // Create a new collapsed link
                 collapsedLink = {
+                    id: null,
                     source: nodeLink.source.group && nodeLink.source.group == group ? group : nodeLink.source,
                     target: nodeLink.target.group && nodeLink.target.group == group ? group : nodeLink.target,
                     size: 1
                 };
+                // create a unique link id for the new collapsed link
+                collapsedLink.id = collapsedLink.source.id + "-" + collapsedLink.target.id;
 
                 if (collapsedLink.source == collapsedLink.target)
                     continue;
@@ -1180,6 +1188,7 @@ function HarmGraph(d3$svg, width, height) {
                 linkSource = nodes[nodeLink.source];
                 linkTarget = nodes[nodeLink.target];
                 renderLink = {
+                    id: null,
                     source: null,
                     target: null,
                     size: 1
@@ -1188,15 +1197,19 @@ function HarmGraph(d3$svg, width, height) {
                 // if source non-grouped or in expanded group, point to it
                 if (!linkSource.group || (linkSource.group && linkSource.group.size == 0)) {
                     renderLink.source = render.nodes.indexOf(linkSource);
+                    renderLink.id = linkSource.id;
                 } else {  // else point to it's group
                     renderLink.source = render.nodes.indexOf(linkSource.group);
+                    renderLink.id = linkSource.group.id;
                 }
 
                 // similarly with the target
                 if (!linkTarget.group || (linkTarget.group && linkTarget.group.size == 0)) {
                     renderLink.target = render.nodes.indexOf(linkTarget);
+                    renderLink.id += "-" + linkTarget.id;
                 } else {
                     renderLink.target = render.nodes.indexOf(linkTarget.group);
+                    renderLink.id += "-" + linkTarget.group.id;
                 }
 
                 render.links.push(renderLink);
