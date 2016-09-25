@@ -1138,7 +1138,9 @@ function HarmGraph(d3$svg, width, height) {
         // Set the expanded size
         group.size = group.elements.length;
         group.x = centroid.x;
+        group.px = centroid.x;
         group.y = centroid.y;
+        group.py = centroid.y;
 
         render.nodes.push(group);
         for (i = 0; i < groupLinks.length; i++) {
