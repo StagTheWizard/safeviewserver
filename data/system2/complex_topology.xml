@@ -20,7 +20,7 @@
         </vulnerability>
       </vulnerabilities>
     </node>
-    <node id="ID_8034861129" name="Firewall">
+    <node id="ID_8034861130" name="Firewall">
       <values>
         <impact>1.0</impact>
       </values>
@@ -32,7 +32,7 @@
         </vulnerability>
       </vulnerabilities>
     </node>
-    <node id="ID_8034861129" name="Firewall">
+    <node id="ID_8034861131" name="Firewall">
       <values>
         <impact>1.0</impact>
       </values>
@@ -358,7 +358,7 @@
       </vulnerabilities>
     </node>
 
-    <node id="ID_2518474137" name="RouterDev">
+    <node id="ID_2518474138" name="RouterDev">
       <values>
         <impact>0.8</impact>
       </values>
@@ -485,7 +485,7 @@
       </vulnerabilities>
     </node>
 
-    <node id="ID_2518474137" name="RouterICT">
+    <node id="ID_2518474139" name="RouterICT">
       <values>
         <impact>1.0</impact>
       </values>
