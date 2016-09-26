@@ -39,26 +39,10 @@ body {
     font-family: "Roboto", "Helvetica Neue", Helvetica, Arial, sans-serif;
 }
 
-/*#banner {*/
-    /*height: 50px;*/
-    /*!*border-bottom: 2px solid #35353b;*!*/
-    /*margin: 0;*/
-    /*background: #222222;*/
-/*}*/
-
 #banner-title {
     padding: 15px 0 0 20px;
     color: lightgrey;
 }
-
-/*#content {*/
-    /*margin: 0 0 0 250px;*/
-    /*position: absolute;*/
-    /*top: 50px;*/
-    /*bottom: 0;*/
-    /*!*width: 100%;*!*/
-    /*padding: 0;*/
-/*}*/
 
 .sidebar {
     position: fixed;
@@ -67,7 +51,6 @@ body {
     z-index: 1000;
     background-color: #242424;
     border-right: 1px solid #111111;
-    /*font-family: "Open Sans", sans-serif;*/
     font-family: "Open Sans Light", sans-serif;
     font-weight: 300;
     color: #999;
@@ -103,7 +86,7 @@ h5 {
 
 .btn {
     background-color: #828282;
-    border-radius: 0px;
+    border-radius: 0;
 }
 
 .panel-title {
@@ -140,7 +123,6 @@ a.panel-title-text {
     background-color: transparent;
     border-left: 0;
     border-right: 0;
-    /*border-top: 1px solid #242424;*/
     border-top: 0;
     border-bottom: 1px solid #242424;
 }
@@ -192,7 +174,6 @@ a.panel-title-text {
 }
 
 .main {
-    padding: 0;
 }
 
 #header {
@@ -201,7 +182,6 @@ a.panel-title-text {
 
 #harm-upper {
     background-color: #eee;
-    width: 100%;
 }
 
 .node {
