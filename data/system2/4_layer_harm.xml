@@ -999,5 +999,13 @@
         <element>27</element>
       </group>
     </layer>
+    <layer>
+      <group>
+        <element>0</element>
+        <element>1</element>
+        <element>2</element>
+        <element>3</element>
+      </group>
+    </layer>
   </upperLayers>
 </harm>
