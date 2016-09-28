@@ -137,12 +137,12 @@ function linkDistance(link, index) {
         if (distance == 0) distance = c;
     } else {
         if (source.group) {
-            distance += 30 + c*source.group.size;
+            distance += 30 + groupRadius(source.group);
         } else {
             distance += 30;
         }
         if (target.group) {
-            distance += 30 + c*target.group.size;
+            distance += 30 + groupRadius(target.group);
         } else {
             distance += 30;
         }
@@ -281,46 +281,107 @@ function inList(list, obj) {
 }
 
 
-function generateConvexHulls(nodes) {
-    // Dictionary of group to possible hull points (subnodes.xy +- offset)
-    var hullsPoints = {};
-    var offset = 15;
+function Hull(group) {
 
-    // Generate possible points for each hull.
-    var groupPointsMap;
-    var k, node;
-    for (k = 0; k < nodes.length; k++) {
-        node = nodes[k];
+    var i, element;
+    for (i = 0; i < group.elements.length; i++) {
+        element = group.elements[i];
 
-        if (node.type == Element.HOST && node.group) {
-            groupPointsMap = hullsPoints[node.group.id] ||
-                (hullsPoints[node.group.id] = {
-                    group: node.group,
-                    points: []
-                });
+        if (element.type == Element.GROUP) {
 
-            if (node.expanded) offset = 30;
-            else offset = 15;
-
-            groupPointsMap.points.push([node.x-offset, node.y-offset]);
-            groupPointsMap.points.push([node.x-offset, node.y+offset]);
-            groupPointsMap.points.push([node.x+offset, node.y+offset]);
-            groupPointsMap.points.push([node.x+offset, node.y-offset]);
-        } /*else if (node.type == Element.GROUP) {
-            continue;
         } else {
-            continue;
-        }*/
+
+        }
     }
+
+}
+
+
+function generateConvexHulls(layers) {
 
     var hulls = [];
-    var groupId;
-    for (groupId in hullsPoints) {
-        hulls.push({
-            group: hullsPoints[groupId].group,
-            path: d3.geom.hull(hullsPoints[groupId].points)})
+    var offset = 15;
+
+    // Generate hulls upwards
+    var i, layer;
+    for (i = 0; i < layers.length; i++) {
+        layer = layers[i];
+        //console.log("layer", i, layer);
+        hulls[i] = [];
+
+        var hull;
+        var j, group;
+        for (j = 0; j < layer.length; j++) {
+            group = layer[j];
+            //console.log("group", j, group);
+            hull = {
+                group: group,
+                points: [],
+                path: []
+            };
+
+            // Generate hulls only for expanded groups..
+            if (group.size == 0) {
+                var k, element, elementIndex, subHull;
+                for (k = 0; k < group.elements.length; k++) {
+                    element = group.elements[k];
+                    //console.log("element", j, element);
+                    elementIndex = group.indices[k];
+
+                    if (element.type == Element.HOST) {
+                        hull.points.push([element.x-offset, element.y-offset]);
+                        hull.points.push([element.x-offset, element.y+offset]);
+                        hull.points.push([element.x+offset, element.y+offset]);
+                        hull.points.push([element.x+offset, element.y-offset]);
+
+                    } else if (element.type == Element.GROUP) {  // It's a group!
+                        // If it is collapsed..
+                        if (element.size > 0) {
+                            //console.log("using subgroup point", element);
+                            // ..use the group nodes position..
+                            hull.points.push([element.x-offset, element.y-offset]);
+                            hull.points.push([element.x-offset, element.y+offset]);
+                            hull.points.push([element.x+offset, element.y+offset]);
+                            hull.points.push([element.x+offset, element.y-offset]);
+
+                        } else {  // ..else it has it's own hull - use it's hull points
+                            subHull = hulls[i-1][k];
+                            //console.log("using subhull points", subHull);
+
+                            var m, subHullPt, hpx, hpy;
+                            for (m = 0; m < subHull.path.length; m++) {
+                                subHullPt = subHull.path[m];
+                                hpx = subHullPt[0]; hpy = subHullPt[1];
+
+                                hull.points.push([hpx-offset, hpy-offset]);
+                                hull.points.push([hpx-offset, hpy+offset]);
+                                hull.points.push([hpx+offset, hpy+offset]);
+                                hull.points.push([hpx+offset, hpy-offset]);
+                            }
+                        }
+                    }
+                }
+                hull.path = d3.geom.hull(hull.points);
+                hulls[i][j] = hull;
+            }
+
+        }
     }
-    return hulls;
+
+    // The above method produces gaps in the lists where groups are collapsed..
+    // ..this is necessary for processing higher layers connections to lower layers..
+    // ..but unsuitable for use as d3 data lists (will result in *nullPtr* errors)..
+    // ..so here the missing elements are removed and the list is compressed.
+    var iterableHulls = [];
+    for (i = 0; i < hulls.length; i++) {
+        iterableHulls[i] = [];
+        for (j = 0; j < hulls[i].length; j++) {
+            if (hulls[i][j] != undefined) iterableHulls[i].push(hulls[i][j]);
+            // [a, b, undefined, c] => [a, b, c]
+        }
+    }
+
+    return iterableHulls;
 }
 
 
@@ -592,7 +653,8 @@ function HarmGraph(d3$svg, width, height) {
             .interpolate("cardinal-closed")
             .tension(0.85);
 
-        d3$hulls.data(generateConvexHulls(render.nodes));
+        this.updateHulls();
+        //d3$hulls.data(generateConvexHulls(render.nodes));
         d3$hulls.attr("d", function (hull) { return curve(hull.path); });
     };
 
@@ -633,7 +695,7 @@ function HarmGraph(d3$svg, width, height) {
             .gravity(0.05)
             .charge(-300)
             .linkDistance(linkDistance)
-            .on("tick", this.onTick);
+            .on("tick", this.onTick.bind(this));
 
         // Define the zoom and drag behaviour.
         zoomListener = d3.behavior.zoom()
@@ -758,8 +820,22 @@ function HarmGraph(d3$svg, width, height) {
             .interpolate("cardinal-closed")
             .tension(0.85);
 
+        // Generate all hulls
+        var hulls = generateConvexHulls(layers);
+
+        // Iterate backwards over the layers of hulls..
+        // ..each time rendering the newly added layer on top.
+        var layeredHullList = [];
+        var i, hullLayer;
+        for (i = hulls.length - 1; i >= 0; i--) {
+            hullLayer = hulls[i];
+            layeredHullList.push.apply(layeredHullList, hullLayer);
+        }
+
         // bind data
-        d3$hulls = d3$hulls.data(generateConvexHulls(render.nodes), function (hull) { return hull.group.id });
+        d3$hulls = d3$hulls.data(
+            layeredHullList,
+            function (hull) { return hull.group.id });
         // define enter
         d3$hulls.enter()
             .append("path")
@@ -770,7 +846,7 @@ function HarmGraph(d3$svg, width, height) {
             .style("fill", function (hull) {
                 return "LightGrey";
             })
-            .on("dblclick", this.collapseGroup.bind(this));
+            .on("dblclick", this.collapseHull.bind(this));
         // define exit
         d3$hulls.exit().remove();
     };
@@ -964,13 +1040,13 @@ function HarmGraph(d3$svg, width, height) {
         });
 
         // Parse the upper layers.
-        $harm.find('layer').each(function (index) {
+        $harm.find('layer').each(function (layerIndex) {
             var $layer = $(this);
             var layer = [];
-            $layer.find('group').each(function (index) {
+            $layer.find('group').each(function (groupIndex) {
                 var $group = $(this);
                 var group = {
-                    id: index,
+                    id: layerIndex + "," + groupIndex,
                     indices: [],
                     elements: [],
                     size: 0,
@@ -1075,7 +1151,7 @@ function HarmGraph(d3$svg, width, height) {
 
 
     this.collapseGroup = function(hull, index) {
-        console.log(hull);
+        console.log("Collapsing", hull);
         var group = hull.group,
             groupLinks = [];
         var centroid = {x: 0, y: 0};
@@ -1152,74 +1228,163 @@ function HarmGraph(d3$svg, width, height) {
     };
 
 
-    this.expandGroup = function(group, index) {
-        var renderIndex;
-        // Remove the node from the render
-        renderIndex = render.nodes.indexOf(group);
-        render.nodes.splice(renderIndex, 1);
-        // Remove the groups links
-        var groupsLinks = getNodesLinks(group, render.links);
-        var i, groupLink;
-        for (i = 0; i < groupsLinks.length; i++) {
-            groupLink = groupsLinks[i];
-            // Remove the link from the render
-            renderIndex = render.links.indexOf(groupLink);
-            render.links.splice(renderIndex, 1);
-        }
-        group.size = 0;
+    this.collapseHull = function(hull, index) {
+        console.log("Collapsing", hull);
+        var group = hull.group;
+        group.memory = this.rememberGroup(group);
+        // Remember the affected state
 
-        // Initiate exit for removed group and links
+
+        // Render the new group
+        render.nodes.push(group);
+        var i, element;
+        for (i = 0; i < group.elements.length; i++) {
+            element = group.elements[i];
+            this.collapseNode(element, group.memory);
+            group.size++;
+        }
+        // update
         this.update();
+    };
 
-        // Add in all children
-        var node;
-        for (i = 0; i < group.elements.length; i++) {
-            node = group.elements[i];
-            render.nodes.push(node);
-        }
-        // Add in all their links
-        var nodesLinks, nodeLink;
-        for (i = 0; i < group.elements.length; i++) {
-            node = group.elements[i];
-            // Iterate over each hosts links, adding them accordingly
-            nodesLinks = getNodesLinks(nodes.indexOf(node), links);
-            var j, renderLink,
-                linkSource, linkTarget;
-            for (j = 0; j < nodesLinks.length; j++) {
-                nodeLink = nodesLinks[j];
-                linkSource = nodes[nodeLink.source];
-                linkTarget = nodes[nodeLink.target];
-                renderLink = {
-                    id: null,
-                    source: null,
-                    target: null,
-                    size: 1
-                };
 
-                // if source non-grouped or in expanded group, point to it
-                if (!linkSource.group || (linkSource.group && linkSource.group.size == 0)) {
-                    renderLink.source = render.nodes.indexOf(linkSource);
-                    renderLink.id = linkSource.id;
-                } else {  // else point to it's group
-                    renderLink.source = render.nodes.indexOf(linkSource.group);
-                    renderLink.id = linkSource.group.id;
+    /**
+     * Performing a collapsing operation upon a node, removing it from the render and updating
+     * it's links to reference it's parent. All-the-while, remember what is removed for future
+     * expansion.
+     * @param node
+     * @param memory
+     */
+    this.collapseNode = function (node) {
+        // If the node is a group, recursively collapse it's children first
+        if (node.type == Element.GROUP) {
+            // Check if expanded..
+            if (node.size == 0) {
+                render.nodes.push(node);
+                // Cascade the collapse event from the bottom up..
+                var i, element, subMemory;
+                for (i = 0; i < node.elements.length; i++) {
+                    element = node.elements[i];
+                    this.collapseNode(element);
+                    node.size++;
                 }
-
-                // similarly with the target
-                if (!linkTarget.group || (linkTarget.group && linkTarget.group.size == 0)) {
-                    renderLink.target = render.nodes.indexOf(linkTarget);
-                    renderLink.id += "-" + linkTarget.id;
-                } else {
-                    renderLink.target = render.nodes.indexOf(linkTarget.group);
-                    renderLink.id += "-" + linkTarget.group.id;
-                }
-
-                render.links.push(renderLink);
             }
         }
 
-        // Initiate enter for added hosts and links
-        this.update();
+        // Start by collapsing the links..
+        var renderLinks = getNodesLinks(node, render.links);
+        var renderLink, collapsedLink, toRemove = [], toAdd = [];
+        for (i = 0; i < renderLinks.length; i++) {
+            renderLink = renderLinks[i];
+            toRemove.push(renderLink);
+
+            collapsedLink = {
+                source: renderLink.source == node ? node.group : renderLink.source,
+                target: renderLink.target == node ? node.group : renderLink.target,
+                size: 1,
+                id: null
+            };
+            collapsedLink.id = collapsedLink.source.id + "-" + collapsedLink.target.id;
+            // Drop internal links
+            if (collapsedLink.source == collapsedLink.target)
+                continue;
+            // Increment duplicate links | add new ones
+            var existingLink = this.getLink(toAdd, collapsedLink);
+            if (existingLink)
+                existingLink.size++;
+            else toAdd.push(collapsedLink);
+        }
+        // update the links
+        for (i = 0; i < toRemove.length; i++)
+            this.spliceLink(render.links, toRemove[i]);
+        for (i = 0; i < toAdd.length; i++) {
+            existingLink = this.getLink(render.links, toAdd[i]);
+            if (existingLink) existingLink.size++;
+            else render.links.push(toAdd[i]);
+        }
+
+        // ..then remove the node itself
+        render.nodes.splice(render.nodes.indexOf(node), 1);
+    };
+
+
+    this.spliceLink = function (list, link) {
+        var i, item;
+        for (i = 0; i < list.length; i++) {
+            item = list[i];
+            if ((link.source == item.source && link.target == item.target) ||
+                (link.source == item.target && link.target == item.source)) {
+                list.splice(i, 1);
+                return;
+            }
+        }
+    };
+
+
+
+    this.getLink = function (list, link) {
+        var i, item;
+        for (i = 0; i < list.length; i++) {
+            item = list[i];
+            if ((link.source == item.source && link.target == item.target) ||
+                (link.source == item.target && link.target == item.source)) {
+                return list[i];
+            }
+        }
+    };
+
+
+    /**
+     * Returns a dictionary of what elements are to be removed
+     * @param group
+     */
+    this.rememberGroup = function (group) {
+
+    };
+
+
+    this.getNodesHosts = function (node) {
+        // Base case..
+        if (node.type == Element.HOST) return [node];
+        // Else.. node.type == Element.GROUP
+        var hosts = [];
+        var i, elem;
+        for (i = 0; i < node.elements.length; i++) {
+            elem = node.elements[i];
+            // Recur
+            hosts.push.apply(hosts, this.getNodesHosts(elem));
+        }
+        return hosts;
+    };
+
+
+    this.calculateConnectivity = function (node1, node2) {
+        var node1Hosts = this.getNodesHosts(node1);
+        var node2Hosts = this.getNodesHosts(node2);
+
+        // Compare hosts of node1, with hosts of node2..
+        var connectivity = 0;
+        var i, n1Host, n1HostIndex;
+        for (i = 0; i < node1Hosts.length; i++) {
+            n1Host = node1Hosts[i];
+            n1HostIndex = nodes.indexOf(n1Host);
+
+            var j, n2Host, n2HostIndex;
+            for (j = 0; j < node2Hosts.length; j++) {
+                n2Host = node2Hosts[j];
+                n2HostIndex = nodes.indexOf(n2Host);
+
+                var k, link;
+                for (k = 0; k < links.length; k++) {
+                    link = links[k];
+                    if ((link.source == n1HostIndex && link.target == n2HostIndex) ||
+                        (link.source == n2HostIndex && link.target == n1HostIndex)) {
+                        connectivity++;
+                    }
+                }
+            }
+        }
+        return connectivity;
     };
 
 
