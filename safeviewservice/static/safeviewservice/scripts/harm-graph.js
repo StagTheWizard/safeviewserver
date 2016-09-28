@@ -651,7 +651,7 @@ function HarmGraph(d3$svg, width, height) {
         // Hull update
         var curve = d3.svg.line()
             .interpolate("cardinal-closed")
-            .tension(0.85);
+            .tension(1);
 
         this.updateHulls();
         //d3$hulls.data(generateConvexHulls(render.nodes));
@@ -818,7 +818,7 @@ function HarmGraph(d3$svg, width, height) {
         console.log("Rendering hulls..");
         var curve = d3.svg.line()
             .interpolate("cardinal-closed")
-            .tension(0.85);
+            .tension(1);
 
         // Generate all hulls
         var hulls = generateConvexHulls(layers);
@@ -1150,84 +1150,6 @@ function HarmGraph(d3$svg, width, height) {
     };
 
 
-    this.collapseGroup = function(hull, index) {
-        console.log("Collapsing", hull);
-        var group = hull.group,
-            groupLinks = [];
-        var centroid = {x: 0, y: 0};
-        // Iterate of the groups (rendered) nodes
-        var i, node, renderNodeIndex;
-        for (i = 0; i < group.elements.length; i++) {
-            node = group.elements[i];
-            // Sum the coordinates for centroid calculation
-            centroid.x += node.x;
-            centroid.y += node.y;
-
-            // Remove the node from the render mesh
-            renderNodeIndex = render.nodes.indexOf(node);
-            render.nodes.splice(renderNodeIndex, 1);
-
-            // Remove all group links from the render mesh
-            var nodesLinks = getNodesLinks(node, render.links);
-            var j, nodeLink, collapsedLink, renderLinkIndex;
-            for (j = 0; j < nodesLinks.length; j++) {
-                nodeLink = nodesLinks[j];
-
-                // Remove the link from the render mesh
-                renderLinkIndex = render.links.indexOf(nodeLink);
-                render.links.splice(renderLinkIndex, 1);
-
-                // Create a new collapsed link
-                collapsedLink = {
-                    id: null,
-                    source: nodeLink.source.group && nodeLink.source.group == group ? group : nodeLink.source,
-                    target: nodeLink.target.group && nodeLink.target.group == group ? group : nodeLink.target,
-                    size: 1
-                };
-                // create a unique link id for the new collapsed link
-                collapsedLink.id = collapsedLink.source.id + "-" + collapsedLink.target.id;
-
-                if (collapsedLink.source == collapsedLink.target)
-                    continue;
-
-                // If existing, up the size
-                var k, existingRenderLink, exists = false;
-                for (k = 0; k < groupLinks.length; k++) {
-                    existingRenderLink = groupLinks[k];
-                    if (existingRenderLink.source == collapsedLink.source &&
-                        existingRenderLink.target == collapsedLink.target) {
-                        existingRenderLink.size++;
-                        exists = true;
-                        break;
-                    }
-                }
-                // Otherwise, add to the render
-                if (!exists) groupLinks.push(collapsedLink);
-            }
-        }
-        // Initiate exit for removed links and nodes
-        this.update();
-
-        // Average the coordinate sum to get the centroid
-        centroid.x /= group.elements.length;
-        centroid.y /= group.elements.length;
-        // Set the expanded size
-        group.size = group.elements.length;
-        group.x = centroid.x;
-        group.px = centroid.x;
-        group.y = centroid.y;
-        group.py = centroid.y;
-
-        render.nodes.push(group);
-        for (i = 0; i < groupLinks.length; i++) {
-            render.links.push(groupLinks[i]);
-        }
-
-        // Initiate enter for added group nodes and links
-        this.update();
-    };
-
-
     this.collapseHull = function(hull, index) {
         console.log("Collapsing", hull);
         var group = hull.group;
@@ -1305,6 +1227,64 @@ function HarmGraph(d3$svg, width, height) {
 
         // ..then remove the node itself
         render.nodes.splice(render.nodes.indexOf(node), 1);
+    };
+
+
+    this.expandGroup = function(group, index) {
+        console.log("Expanding", group);
+
+        group.size = 0;
+        // Splice the groups links (and find externally linked nodes)
+        var groupLinks = getNodesLinks(group, render.links);
+        var i, link, externalNodes = [];
+        for (i = 0; i < groupLinks.length; i++) {
+            link = groupLinks[i];
+            this.spliceLink(render.links, link);
+            if (link.source == group) externalNodes.push(link.target);
+            else if (link.target == group) externalNodes.push(link.source);
+        }
+        // Splice the group
+        render.nodes.splice(render.nodes.indexOf(group), 1);
+
+        // Create child nodes
+        var elem;
+        for (i = 0; i < group.elements.length; i++) {
+            elem = group.elements[i];
+            render.nodes.push(elem);
+
+            // Create internal links
+            var j, otherElem, connectivity, expandedLink;
+            for (j = i + 1; j < group.elements.length; j++) {
+                otherElem = group.elements[j];
+                connectivity = this.calculateConnectivity(elem, otherElem);
+                if (connectivity == 0) continue;
+                expandedLink = {
+                    source: elem,
+                    target: otherElem,
+                    size: connectivity
+                };
+                expandedLink.id = elem.id + "-" + otherElem.id;
+                console.log("Internal expanded link", expandedLink);
+                render.links.push(expandedLink);
+            }
+            // Create external links
+            var extNode;
+            for (j = 0; j < externalNodes.length; j++) {
+                extNode = externalNodes[j];
+                connectivity = this.calculateConnectivity(elem, extNode);
+                if (connectivity == 0) continue;
+                expandedLink = {
+                    source: elem,
+                    target: extNode,
+                    size: connectivity
+                };
+                expandedLink.id = elem.id + "-" + extNode.id;
+                console.log("External expanded link", expandedLink);
+                render.links.push(expandedLink);
+            }
+        }
+
+        this.update();
     };
 
 
