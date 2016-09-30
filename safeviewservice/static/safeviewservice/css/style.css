@@ -190,6 +190,10 @@ a.panel-title-text {
     color: #222;
 }
 
+.node text {
+    text-shadow: -1px 0 white, 0 1px white, 1px 0 white, 0 -1px white;
+}
+
 circle {
     stroke: #fff;
     stroke-width: 2px;
